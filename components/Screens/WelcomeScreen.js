@@ -1,5 +1,11 @@
 import React from "react";
-import { SafeAreaView, View, Image, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  SafeAreaView,
+  View,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
 import CustomText from "../utils/CustomText";
 import { COLORS } from "../utils/Constants";
 import Feather from "react-native-vector-icons/Feather";

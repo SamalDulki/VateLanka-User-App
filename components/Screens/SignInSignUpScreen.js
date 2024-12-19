@@ -33,7 +33,6 @@ export default function SignInSignUpScreen({ navigation }) {
         {/* Sign Up Button */}
         <TouchableOpacity
           style={styles.button}
-
           onPress={() => navigation.navigate("SignupScreen")}
           activeOpacity={0.9}
         >

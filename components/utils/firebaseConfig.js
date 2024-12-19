@@ -14,7 +14,7 @@ const firebaseConfig = {
   storageBucket: "vatelanka-e6828.firebasestorage.app",
   messagingSenderId: "444350594980",
   appId: "1:444350594980:web:38660abe178b78750b4b31",
-  measurementId: "G-0C4KQG6Q61"
+  measurementId: "G-0C4KQG6Q61",
 };
 
 // Initialize Firebase

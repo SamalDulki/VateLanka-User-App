@@ -196,7 +196,11 @@ export default function SignupScreen({ navigation }) {
           </TouchableOpacity>
         </Modal>
 
-        <TouchableOpacity style={styles.button} activeOpacity={0.9} onPress={handleSignUp}>
+        <TouchableOpacity
+          style={styles.button}
+          activeOpacity={0.9}
+          onPress={handleSignUp}
+        >
           <CustomText style={styles.buttonText}>Sign Up</CustomText>
         </TouchableOpacity>
 

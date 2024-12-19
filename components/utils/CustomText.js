@@ -2,7 +2,11 @@ import React from "react";
 import { Text, StyleSheet } from "react-native";
 
 const CustomText = ({ children, style, ...props }) => {
-  return <Text style={[styles.defaultText, style]} {...props}>{children}</Text>;
+  return (
+    <Text style={[styles.defaultText, style]} {...props}>
+      {children}
+    </Text>
+  );
 };
 
 const styles = StyleSheet.create({

@@ -1,5 +1,13 @@
 import { firestore } from "../utils/firebaseConfig";
-import { collection, getDocs, query, where, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 
 // Save user data to Firestore
 export const saveUserData = async (uid, userData) => {

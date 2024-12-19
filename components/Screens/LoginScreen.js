@@ -78,7 +78,11 @@ export default function LoginScreen({ navigation }) {
         navigation.navigate("HomeScreen");
       }, 3000);
     } catch (error) {
-      showNotification(error.message, "error");
+      if (error.message.includes("Please verify your email")) {
+        showNotification(error.message, "error");
+      } else {
+        showNotification("Invalid email or password.", "error");
+      }
     }
   };
 

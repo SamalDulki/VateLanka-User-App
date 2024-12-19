@@ -3,7 +3,6 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Text,
   StyleSheet,
   Image,
   Animated,
@@ -11,11 +10,13 @@ import {
   ScrollView,
 } from "react-native";
 import { signUpWithEmail } from "../services/firebaseAuth";
+import CustomText from "../utils/CustomText";
+import { COLORS } from "../utils/Constants";
 import {
   saveUserData,
   fetchMunicipalCouncils,
 } from "../services/firebaseFirestore";
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 const NotificationBanner = ({ message, type, visible, onHide }) => {
   const translateY = useState(new Animated.Value(-100))[0];
@@ -38,10 +39,11 @@ const NotificationBanner = ({ message, type, visible, onHide }) => {
     }
   }, [visible]);
 
-  const backgroundColor = type === 'success' ? '#37B34A' : '#ff4444';
+  const backgroundColor =
+    type === "success" ? COLORS.successbanner : COLORS.errorbanner;
 
   if (!visible) return null;
-  
+
   return (
     <Animated.View
       style={[
@@ -49,7 +51,7 @@ const NotificationBanner = ({ message, type, visible, onHide }) => {
         { transform: [{ translateY }], backgroundColor },
       ]}
     >
-      <Text style={styles.notificationText}>{message}</Text>
+      <CustomText style={styles.notificationText}>{message}</CustomText>
     </Animated.View>
   );
 };
@@ -59,7 +61,9 @@ export default function SignupScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [municipalCouncil, setMunicipalCouncil] = useState("");
-  const [municipalCouncilName, setMunicipalCouncilName] = useState("Select Municipal Council");
+  const [municipalCouncilName, setMunicipalCouncilName] = useState(
+    "Select Municipal Council"
+  );
   const [councils, setCouncils] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [notification, setNotification] = useState({
@@ -109,7 +113,7 @@ export default function SignupScreen({ navigation }) {
     <View style={styles.container}>
       <NotificationBanner
         {...notification}
-        onHide={() => setNotification(prev => ({ ...prev, visible: false }))}
+        onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
       />
       <Image
         source={require("../ApplicationAssets/logo.png")}
@@ -117,39 +121,46 @@ export default function SignupScreen({ navigation }) {
         resizeMode="contain"
       />
       <View style={styles.card}>
-        <Text style={styles.title}>Sign Up</Text>
+        <CustomText style={styles.title}>Sign Up</CustomText>
         <TextInput
           placeholder="Name"
           style={styles.input}
-          placeholderTextColor="#999"
+          placeholderTextColor={COLORS.placeholderTextColor}
           onChangeText={setName}
         />
         <TextInput
           placeholder="Email"
           style={styles.input}
-          placeholderTextColor="#999"
+          placeholderTextColor={COLORS.placeholderTextColor}
           keyboardType="email-address"
           onChangeText={setEmail}
         />
         <TextInput
           placeholder="Password"
           style={styles.input}
-          placeholderTextColor="#999"
+          placeholderTextColor={COLORS.placeholderTextColor}
           secureTextEntry
           onChangeText={setPassword}
         />
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.dropdownButton}
           onPress={() => setShowDropdown(true)}
+          activeOpacity={0.9}
         >
-          <Text style={[
-            styles.dropdownButtonText,
-            municipalCouncil ? styles.dropdownButtonTextSelected : null
-          ]}>
+          <CustomText
+            style={[
+              styles.dropdownButtonText,
+              municipalCouncil ? styles.dropdownButtonTextSelected : null,
+            ]}
+          >
             {municipalCouncilName}
-          </Text>
-          <Icon name="arrow-drop-down" size={24} color="#999" />
+          </CustomText>
+          <Icon
+            name="arrow-drop-down"
+            size={24}
+            color={COLORS.placeholderTextColor}
+          />
         </TouchableOpacity>
 
         <Modal
@@ -175,7 +186,9 @@ export default function SignupScreen({ navigation }) {
                       setShowDropdown(false);
                     }}
                   >
-                    <Text style={styles.dropdownItemText}>{council.name}</Text>
+                    <CustomText style={styles.dropdownItemText}>
+                      {council.name}
+                    </CustomText>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -183,20 +196,20 @@ export default function SignupScreen({ navigation }) {
           </TouchableOpacity>
         </Modal>
 
-        <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-          <Text style={styles.buttonText}>Sign Up</Text>
+        <TouchableOpacity style={styles.button} activeOpacity={0.9} onPress={handleSignUp}>
+          <CustomText style={styles.buttonText}>Sign Up</CustomText>
         </TouchableOpacity>
 
         <View style={styles.loginTextContainer}>
-          <Text style={styles.loginText}>
+          <CustomText style={styles.loginText}>
             Already have an account?{" "}
-            <Text
+            <CustomText
               style={styles.loginLink}
               onPress={() => navigation.navigate("LoginScreen")}
             >
               Log in
-            </Text>
-          </Text>
+            </CustomText>
+          </CustomText>
         </View>
       </View>
     </View>
@@ -206,18 +219,18 @@ export default function SignupScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     padding: 20,
   },
   notificationBanner: {
-    position: 'absolute',
-    top: 0,
+    position: "absolute",
+    top: 50,
     right: 20,
     left: 20,
     padding: 15,
     borderRadius: 8,
     zIndex: 1000,
-    shadowColor: "#000",
+    shadowColor: COLORS.black,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -227,23 +240,23 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   notificationText: {
-    color: '#fff',
+    color: COLORS.white,
     fontSize: 14,
-    textAlign: 'center',
-    fontWeight: '600',
+    textAlign: "center",
+    fontWeight: "600",
   },
   logo: {
     width: 150,
     height: 60,
     alignSelf: "center",
-    marginTop: 40,
-    marginBottom: 20,
+    marginTop: 70,
+    marginBottom: 50,
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     borderRadius: 20,
     padding: 20,
-    shadowColor: "#000",
+    shadowColor: COLORS.black,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -254,45 +267,46 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    color: "#37B34A",
+    color: COLORS.primary,
     textAlign: "center",
     marginBottom: 20,
+    fontWeight: 500,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#E8E8E8",
+    borderColor: COLORS.borderGray,
     borderRadius: 8,
     padding: 15,
     marginBottom: 15,
-    backgroundColor: "#fff",
-    color: "#000",
+    backgroundColor: COLORS.white,
+    color: COLORS.black,
   },
   dropdownButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E8E8E8",
+    borderColor: COLORS.borderGray,
     borderRadius: 8,
     padding: 15,
     marginBottom: 15,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
   },
   dropdownButtonText: {
-    color: "#999",
+    color: COLORS.placeholderTextColor,
     fontSize: 14,
   },
   dropdownButtonTextSelected: {
-    color: "#000",
+    color: COLORS.black,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
     padding: 20,
   },
   dropdownModal: {
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
     borderRadius: 8,
     maxHeight: 300,
     padding: 10,
@@ -300,21 +314,22 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#E8E8E8',
+    borderBottomColor: COLORS.borderGray,
   },
   dropdownItemText: {
     fontSize: 14,
-    color: '#000',
+    color: COLORS.black,
   },
   button: {
-    backgroundColor: "#37B34A",
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: 15,
     alignItems: "center",
     marginTop: 10,
+    marginBottom: 20,
   },
   buttonText: {
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -323,11 +338,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loginText: {
-    color: "#666",
+    color: COLORS.textGray,
     fontSize: 14,
   },
   loginLink: {
-    color: "#37B34A",
+    color: COLORS.primary,
     textDecorationLine: "none",
   },
 });

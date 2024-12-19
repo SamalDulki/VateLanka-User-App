@@ -19,7 +19,7 @@ export default function SignInSignUpScreen({ navigation }) {
         <CustomText style={styles.subtitle}>How are you today?</CustomText>
       </View>
 
-      {/* Logo */}+
+      {/* Logo */}
       <View style={styles.logoContainer}>
         <Image
           source={require("../ApplicationAssets/logo.png")}

@@ -13,6 +13,7 @@ import Icon from "react-native-vector-icons/Feather";
 import { auth, firestore } from "../utils/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import Svg, { Circle, Path } from "react-native-svg";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const ProfileIcon = () => (
   <Svg width="40" height="40" viewBox="0 0 40 40">
@@ -37,7 +38,7 @@ const ProfileIcon = () => (
 export default function HomeScreen({ navigation }) {
   const [userName, setUserName] = useState("");
   const [greeting, setGreeting] = useState("");
-  const [randomSubGreeting, setRandomSubGreeting] = useState('');
+  const [subGreeting, setSubGreeting] = useState("");
 
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -63,9 +64,33 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    // Select a random greeting
-    const randomIndex = Math.floor(Math.random() * greetings.length);
-    setRandomSubGreeting(greetings[randomIndex]);
+    const fetchSubGreeting = async () => {
+      const storedGreeting = await AsyncStorage.getItem("subGreeting");
+      const storedTimestamp = await AsyncStorage.getItem(
+        "subGreetingTimestamp"
+      );
+      const now = new Date().getTime();
+
+      if (storedGreeting && storedTimestamp) {
+        // Check if 12 hours (43200000ms) have passed
+        const timeElapsed = now - parseInt(storedTimestamp, 10);
+        if (timeElapsed < 43200000) {
+          setSubGreeting(storedGreeting);
+          return;
+        }
+      }
+
+      // If no stored greeting or 12 hours have passed, generate a new one
+      const randomIndex = Math.floor(Math.random() * greetings.length);
+      const newGreeting = greetings[randomIndex];
+      setSubGreeting(newGreeting);
+
+      // Save the new greeting and current timestamp
+      await AsyncStorage.setItem("subGreeting", newGreeting);
+      await AsyncStorage.setItem("subGreetingTimestamp", now.toString());
+    };
+
+    fetchSubGreeting();
   }, []);
 
   return (
@@ -86,9 +111,7 @@ export default function HomeScreen({ navigation }) {
         <CustomText style={styles.greetingText}>
           {greeting}, {userName}!
         </CustomText>
-        <CustomText style={styles.subGreetingText}>
-          {randomSubGreeting}
-        </CustomText>
+        <CustomText style={styles.subGreetingText}>{subGreeting}</CustomText>
       </View>
 
       <View style={styles.searchContainer}>

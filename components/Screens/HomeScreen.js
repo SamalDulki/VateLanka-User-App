@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
+import greetings from "../utils/greetings";
 import Icon from "react-native-vector-icons/Feather";
 import { auth, firestore } from "../utils/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
@@ -36,6 +37,7 @@ const ProfileIcon = () => (
 export default function HomeScreen({ navigation }) {
   const [userName, setUserName] = useState("");
   const [greeting, setGreeting] = useState("");
+  const [randomSubGreeting, setRandomSubGreeting] = useState('');
 
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -60,6 +62,12 @@ export default function HomeScreen({ navigation }) {
     setGreeting(getGreeting());
   }, []);
 
+  useEffect(() => {
+    // Select a random greeting
+    const randomIndex = Math.floor(Math.random() * greetings.length);
+    setRandomSubGreeting(greetings[randomIndex]);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -79,7 +87,7 @@ export default function HomeScreen({ navigation }) {
           {greeting}, {userName}!
         </CustomText>
         <CustomText style={styles.subGreetingText}>
-          Ready to manage your waste today?
+          {randomSubGreeting}
         </CustomText>
       </View>
 

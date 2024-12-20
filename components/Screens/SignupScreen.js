@@ -100,7 +100,13 @@ export default function SignupScreen({ navigation }) {
     try {
       const user = await signUpWithEmail(email, password);
       await saveUserData(user.uid, { name, email, municipalCouncil });
-      showNotification("Account created! Verification email sent.", "success");
+
+      showNotification(
+        "Account created! Please verify your email before logging in.",
+        "success"
+      );
+
+      // Navigate back to SignInSignUp after a delay
       setTimeout(() => {
         navigation.navigate("SignInSignUp");
       }, 3000);

@@ -11,8 +11,13 @@ import SignupScreen from "./components/Screens/SignupScreen";
 import LoginScreen from "./components/Screens/LoginScreen";
 import HomeScreen from "./components/Screens/HomeScreen";
 import ProfileScreen from "./components/Screens/ProfileScreen";
+import { ScheduleScreen } from "./components/Screens/ScheduleScreen";
+import { ReportScreen } from "./components/Screens/ReportScreen";
+import { TrackScreen } from "./components/Screens/TrackScreen";
+import { RecycleScreen } from "./components/Screens/RecycleScreen";
 import { auth } from "./components/utils/firebaseConfig";
 import Icon from "react-native-vector-icons/Feather";
+import { COLORS } from "./components/utils/Constants";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -24,12 +29,12 @@ function HomeTabs() {
         headerShown: false,
         tabBarStyle: {
           height: 70,
-          backgroundColor: "white",
+          backgroundColor: COLORS.white,
           borderTopLeftRadius: 30,
           borderTopRightRadius: 30,
         },
-        tabBarActiveTintColor: "#4CAF50",
-        tabBarInactiveTintColor: "gray",
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.iconinactive,
       }}
     >
       <Tab.Screen
@@ -43,7 +48,7 @@ function HomeTabs() {
       />
       <Tab.Screen
         name="Schedule"
-        component={HomeScreen}
+        component={ScheduleScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <Icon name="calendar" size={24} color={color} />
@@ -52,7 +57,7 @@ function HomeTabs() {
       />
       <Tab.Screen
         name="Report"
-        component={HomeScreen}
+        component={ReportScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <Icon name="navigation" size={24} color={color} />
@@ -61,7 +66,7 @@ function HomeTabs() {
       />
       <Tab.Screen
         name="Track"
-        component={HomeScreen}
+        component={TrackScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <Icon name="map-pin" size={24} color={color} />
@@ -70,7 +75,7 @@ function HomeTabs() {
       />
       <Tab.Screen
         name="Recycle"
-        component={HomeScreen}
+        component={RecycleScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <Icon name="refresh-cw" size={24} color={color} />
@@ -88,11 +93,9 @@ export default function App() {
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user && !user.emailVerified) {
-        // If user is not verified, sign them out and keep them in auth flow
         auth.signOut();
         setUser(null);
       } else if (user && user.emailVerified) {
-        // Only set authenticated user if email is verified
         setUser(user);
       } else {
         setUser(null);
@@ -115,13 +118,11 @@ export default function App() {
         }}
       >
         {user ? (
-          // Only show these screens if user is verified and logged in
           <>
             <Stack.Screen name="MainApp" component={HomeTabs} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
           </>
         ) : (
-          // Show these screens for unverified/logged out users
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="SignInSignUp" component={SignInSignUpScreen} />

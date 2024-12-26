@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, StyleSheet } from "react-native";
-import {COLORS} from "./Constants";
+import { COLORS } from "./Constants";
 
 const CustomText = ({ children, style, ...props }) => {
   return (
@@ -12,8 +12,8 @@ const CustomText = ({ children, style, ...props }) => {
 
 const styles = StyleSheet.create({
   defaultText: {
-    fontFamily: "Poppins_400Regular", 
-    color: COLORS.black, 
+    fontFamily: "Poppins_400Regular",
+    color: COLORS.black,
   },
 });
 

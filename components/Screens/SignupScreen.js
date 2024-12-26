@@ -106,7 +106,6 @@ export default function SignupScreen({ navigation }) {
         "success"
       );
 
-      // Navigate back to SignInSignUp after a delay
       setTimeout(() => {
         navigation.navigate("SignInSignUp");
       }, 3000);

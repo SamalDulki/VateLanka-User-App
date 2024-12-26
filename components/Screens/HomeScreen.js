@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  ScrollView,
+  RefreshControl,
 } from "react-native";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
@@ -14,6 +16,7 @@ import { auth, firestore } from "../utils/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import Svg, { Circle, Path } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { NewsFeed } from "../api/NewsFeed";
 
 const ProfileIcon = () => (
   <Svg width="40" height="40" viewBox="0 0 40 40">
@@ -39,93 +42,96 @@ export default function HomeScreen({ navigation }) {
   const [userName, setUserName] = useState("");
   const [greeting, setGreeting] = useState("");
   const [subGreeting, setSubGreeting] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [newsKey, setNewsKey] = useState(0);
 
-  useEffect(() => {
-    const getCurrentUser = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDoc = await getDoc(doc(firestore, "users", user.uid));
-        if (userDoc.exists()) {
-          setUserName(userDoc.data().name);
-        }
+  const fetchUserData = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const userDoc = await getDoc(doc(firestore, "users", user.uid));
+      if (userDoc.exists()) {
+        setUserName(userDoc.data().name);
       }
-    };
-    getCurrentUser();
-  }, []);
+    }
+  };
+
+  const updateGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const fetchSubGreeting = async () => {
+    const randomIndex = Math.floor(Math.random() * greetings.length);
+    const newGreeting = greetings[randomIndex];
+    setSubGreeting(newGreeting);
+    await AsyncStorage.setItem("subGreeting", newGreeting);
+    await AsyncStorage.setItem(
+      "subGreetingTimestamp",
+      new Date().getTime().toString()
+    );
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchUserData(), fetchSubGreeting()]);
+    setGreeting(updateGreeting());
+    setNewsKey((prev) => prev + 1);
+    setRefreshing(false);
+  };
 
   useEffect(() => {
-    const getGreeting = () => {
-      const hour = new Date().getHours();
-      if (hour < 12) return "Good morning";
-      if (hour < 18) return "Good afternoon";
-      return "Good evening";
-    };
-    setGreeting(getGreeting());
-  }, []);
-
-  useEffect(() => {
-    const fetchSubGreeting = async () => {
-      const storedGreeting = await AsyncStorage.getItem("subGreeting");
-      const storedTimestamp = await AsyncStorage.getItem(
-        "subGreetingTimestamp"
-      );
-      const now = new Date().getTime();
-
-      if (storedGreeting && storedTimestamp) {
-        // Check if 12 hours (43200000ms) have passed
-        const timeElapsed = now - parseInt(storedTimestamp, 10);
-        if (timeElapsed < 43200000) {
-          setSubGreeting(storedGreeting);
-          return;
-        }
-      }
-
-      // If no stored greeting or 12 hours have passed, generate a new one
-      const randomIndex = Math.floor(Math.random() * greetings.length);
-      const newGreeting = greetings[randomIndex];
-      setSubGreeting(newGreeting);
-
-      // Save the new greeting and current timestamp
-      await AsyncStorage.setItem("subGreeting", newGreeting);
-      await AsyncStorage.setItem("subGreetingTimestamp", now.toString());
-    };
-
+    fetchUserData();
+    setGreeting(updateGreeting());
     fetchSubGreeting();
   }, []);
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.locationContainer}>
-          <Icon name="map-pin" size={20} color={COLORS.primary} />
-          <CustomText style={styles.locationText}>
-            GP Square, Bambalapitiya
-          </CustomText>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+      >
+        <View style={styles.header}>
+          <View style={styles.locationContainer}>
+            <Icon name="map-pin" size={20} color={COLORS.gpslogo} />
+            <CustomText style={styles.locationText}>
+              GP Square, Bambalapitiya
+            </CustomText>
+          </View>
+          <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
+            <ProfileIcon />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-          <ProfileIcon />
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.greetingContainer}>
-        <CustomText style={styles.greetingText}>
-          {greeting}, {userName}!
-        </CustomText>
-        <CustomText style={styles.subGreetingText}>{subGreeting}</CustomText>
-      </View>
+        <View style={styles.greetingContainer}>
+          <CustomText style={styles.greetingText}>
+            {greeting}, {userName}!
+          </CustomText>
+          <CustomText style={styles.subGreetingText}>{subGreeting}</CustomText>
+        </View>
 
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color={COLORS.placeholderTextColor} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search For Updates"
-          placeholderTextColor={COLORS.placeholderTextColor}
-        />
-      </View>
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color={COLORS.placeholderTextColor} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search For Updates"
+            placeholderTextColor={COLORS.placeholderTextColor}
+          />
+        </View>
 
-      <View style={styles.contentContainer}>
-        {/* Empty container for future news API integration */}
-      </View>
+        <View style={styles.contentContainer}>
+          <NewsFeed key={newsKey} />
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -134,6 +140,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
+  },
+  scrollContainer: {
+    flexGrow: 1,
   },
   header: {
     flexDirection: "row",

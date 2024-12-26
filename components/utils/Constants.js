@@ -8,4 +8,6 @@ export const COLORS = {
   placeholderTextColor: "#999", // Placeholder text color
   successbanner: "#37B34A", // Success banner color
   errorbanner: "#ff4444", // Error banner color
+  iconinactive: "#999999", // Inactive icon color
+  gpslogo: "#f70505", // Google Maps logo color
 };

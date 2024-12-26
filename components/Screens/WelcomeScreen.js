@@ -13,13 +13,11 @@ import Feather from "react-native-vector-icons/Feather";
 export default function WelcomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
-      {/* Welcome Header */}
       <View style={styles.header}>
         <CustomText style={styles.welcomeText}>Welcome!</CustomText>
         <CustomText style={styles.subtitle}>How are you today?</CustomText>
       </View>
 
-      {/* Logo */}
       <View style={styles.logoContainer}>
         <Image
           source={require("../ApplicationAssets/logo.png")}
@@ -28,7 +26,6 @@ export default function WelcomeScreen({ navigation }) {
         <CustomText style={styles.tagline}>For a Cleaner Sri Lanka</CustomText>
       </View>
 
-      {/* Get Started Button */}
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate("SignInSignUp")}

@@ -42,7 +42,7 @@ export const loginWithEmail = async (email, password) => {
     const user = userCredential.user;
 
     if (!user.emailVerified) {
-      await auth.signOut(); // Sign out if email isn't verified
+      await auth.signOut();
       throw new Error("Invalid email or password.");
     }
 

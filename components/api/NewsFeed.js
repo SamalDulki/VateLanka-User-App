@@ -20,7 +20,7 @@ const CACHE_DURATION = 5 * 60 * 1000;
 const AUTO_SCROLL_INTERVAL = 5000;
 const FETCH_INTERVAL = 300000;
 const API_URL =
-  "https://custom-cmc-news-fetching-api-enh-production.up.railway.app/api/news";
+  "https://custom-cmc-news-fetching-api-enhanced.onrender.com/api/news";
 
 const NewsItem = React.memo(({ item, onPress, currentIndex, totalDots }) => {
   const [imageLoaded, setImageLoaded] = useState(false);

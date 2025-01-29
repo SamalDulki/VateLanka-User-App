@@ -1,12 +1,135 @@
-import React from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { auth } from "../utils/firebaseConfig";
 import CustomText from "../utils/CustomText";
 import { COLORS } from "../utils/Constants";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  fetchUserProfile,
+  fetchDistrictsForMunicipalCouncil,
+  fetchWardsForDistrict,
+  updateUserLocation,
+} from "../services/firebaseFirestore";
 
 export default function ProfileScreen({ navigation }) {
+  const [userMunicipalCouncil, setUserMunicipalCouncil] = useState("");
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [selectedWard, setSelectedWard] = useState("");
+  const [showDistrictModal, setShowDistrictModal] = useState(false);
+  const [showWardModal, setShowWardModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [locationLocked, setLocationLocked] = useState(false);
+  const [selectedDistrictName, setSelectedDistrictName] = useState("");
+  const [selectedWardName, setSelectedWardName] = useState("");
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDistrict) {
+      fetchWards();
+    }
+  }, [selectedDistrict]);
+
+  const fetchUserData = async () => {
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const userData = await fetchUserProfile(user.uid);
+        if (userData) {
+          setUserName(userData.name);
+          setUserEmail(userData.email);
+          setUserMunicipalCouncil(userData.municipalCouncil);
+
+          if (userData.district && userData.ward) {
+            setSelectedDistrict(userData.district);
+            setSelectedWard(userData.ward);
+            setSelectedDistrictName(userData.districtName);
+            setSelectedWardName(userData.wardName);
+            setLocationLocked(true);
+          }
+
+          await fetchDistricts(userData.municipalCouncil);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+    setLoading(false);
+  };
+
+  const fetchDistricts = async (municipalCouncilId) => {
+    try {
+      const districtList = await fetchDistrictsForMunicipalCouncil(
+        municipalCouncilId
+      );
+      setDistricts(districtList);
+    } catch (error) {
+      console.error("Error fetching districts:", error);
+    }
+  };
+
+  const fetchWards = async () => {
+    try {
+      const wardList = await fetchWardsForDistrict(
+        userMunicipalCouncil,
+        selectedDistrict
+      );
+      setWards(wardList);
+    } catch (error) {
+      console.error("Error fetching wards:", error);
+    }
+  };
+
+  const handleUpdateUserLocation = async () => {
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const selectedDistrictData = districts.find(
+          (d) => d.id === selectedDistrict
+        );
+        const selectedWardData = wards.find((w) => w.id === selectedWard);
+
+        const locationData = {
+          district: selectedDistrict,
+          ward: selectedWard,
+          districtName: selectedDistrictData.name,
+          wardName: selectedWardData.name,
+        };
+
+        await updateUserLocation(user.uid, locationData);
+
+        const locationString = `${selectedWardData.name}, ${selectedDistrictData.name}`;
+        await AsyncStorage.setItem("userLocation", locationString);
+
+        setSelectedDistrictName(selectedDistrictData.name);
+        setSelectedWardName(selectedWardData.name);
+        setLocationLocked(true);
+      }
+    } catch (error) {
+      console.error("Error updating user location:", error);
+    }
+    setLoading(false);
+  };
+
   const handleSignOut = async () => {
     try {
+      await AsyncStorage.removeItem("userLocation");
       await auth.signOut();
       navigation.reset({
         index: 0,
@@ -17,11 +140,184 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const LocationDisplay = () => (
+    <View style={styles.locationDisplay}>
+      <CustomText style={styles.locationLabel}>Your Location</CustomText>
+      <CustomText style={styles.locationValue}>
+        {selectedWardName
+          ? `${selectedWardName}, ${selectedDistrictName}`
+          : "Location not set"}
+      </CustomText>
+      {locationLocked && (
+        <CustomText style={styles.lockedMessage}>
+          Location is locked. Contact admin to change.
+        </CustomText>
+      )}
+    </View>
+  );
+
+  const LocationSelector = ({ title, value, onPress, disabled }) => (
+    <TouchableOpacity
+      style={[styles.selectorButton, disabled && styles.disabledButton]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <View style={styles.selectorContent}>
+        <CustomText style={styles.selectorLabel}>{title}</CustomText>
+        <CustomText
+          style={[styles.selectorValue, disabled && styles.disabledText]}
+        >
+          {value || `Select ${title}`}
+        </CustomText>
+      </View>
+      {!disabled && (
+        <Icon name="arrow-drop-down" size={24} color={COLORS.primary} />
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <CustomText style={styles.signOutText}>Sign Out</CustomText>
-      </TouchableOpacity>
+      {loading ? (
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      ) : (
+        <>
+          <View style={styles.profileInfo}>
+            <CustomText style={styles.userName}>{userName}</CustomText>
+            <CustomText style={styles.userEmail}>{userEmail}</CustomText>
+          </View>
+
+          <View style={styles.locationSection}>
+            {locationLocked ? (
+              <LocationDisplay />
+            ) : (
+              <>
+                <CustomText style={styles.sectionTitle}>
+                  Set Your Location
+                </CustomText>
+
+                <LocationSelector
+                  title="District"
+                  value={
+                    selectedDistrictName ||
+                    (selectedDistrict
+                      ? districts.find((d) => d.id === selectedDistrict)?.name
+                      : "")
+                  }
+                  onPress={() => setShowDistrictModal(true)}
+                  disabled={locationLocked}
+                />
+
+                <LocationSelector
+                  title="Ward"
+                  value={
+                    selectedWardName ||
+                    (selectedWard
+                      ? wards.find((w) => w.id === selectedWard)?.name
+                      : "")
+                  }
+                  onPress={() =>
+                    selectedDistrict ? setShowWardModal(true) : null
+                  }
+                  disabled={locationLocked || !selectedDistrict}
+                />
+
+                {!locationLocked && selectedDistrict && selectedWard && (
+                  <TouchableOpacity
+                    style={styles.updateButton}
+                    onPress={handleUpdateUserLocation}
+                  >
+                    <CustomText style={styles.updateButtonText}>
+                      Set Location
+                    </CustomText>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+          >
+            <CustomText style={styles.signOutText}>Sign Out</CustomText>
+          </TouchableOpacity>
+
+          {/* District Selection Modal */}
+          <Modal
+            visible={showDistrictModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowDistrictModal(false)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowDistrictModal(false)}
+            >
+              <View style={styles.modalContent}>
+                <CustomText style={styles.modalTitle}>
+                  Select District
+                </CustomText>
+                <ScrollView>
+                  {districts.map((district) => (
+                    <TouchableOpacity
+                      key={district.id}
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setSelectedDistrict(district.id);
+                        setSelectedDistrictName(district.name);
+                        setSelectedWard("");
+                        setSelectedWardName("");
+                        setShowDistrictModal(false);
+                      }}
+                    >
+                      <CustomText style={styles.modalItemText}>
+                        {district.name}
+                      </CustomText>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* Ward Selection Modal */}
+          <Modal
+            visible={showWardModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowWardModal(false)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowWardModal(false)}
+            >
+              <View style={styles.modalContent}>
+                <CustomText style={styles.modalTitle}>Select Ward</CustomText>
+                <ScrollView>
+                  {wards.map((ward) => (
+                    <TouchableOpacity
+                      key={ward.id}
+                      style={styles.modalItem}
+                      onPress={() => {
+                        setSelectedWard(ward.id);
+                        setSelectedWardName(ward.name);
+                        setShowWardModal(false);
+                      }}
+                    >
+                      <CustomText style={styles.modalItemText}>
+                        {ward.name}
+                      </CustomText>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        </>
+      )}
     </View>
   );
 }
@@ -29,19 +325,133 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
+    backgroundColor: COLORS.white,
+    padding: 20,
+  },
+  profileInfo: {
     alignItems: "center",
+    marginBottom: 30,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: COLORS.black,
+    marginBottom: 5,
+  },
+  userEmail: {
+    fontSize: 16,
+    color: COLORS.textGray,
+  },
+  locationSection: {
+    marginBottom: 30,
+  },
+  locationDisplay: {
+    backgroundColor: COLORS.secondary,
+    padding: 20,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  locationLabel: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    marginBottom: 5,
+  },
+  locationValue: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.black,
+    marginBottom: 10,
+  },
+  lockedMessage: {
+    fontSize: 14,
+    color: COLORS.errorbanner,
+    fontStyle: "italic",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.black,
+    marginBottom: 15,
+  },
+  selectorButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
     backgroundColor: COLORS.white,
   },
-  signOutButton: {
+  disabledButton: {
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.borderGray,
+  },
+  disabledText: {
+    color: COLORS.textGray,
+  },
+  selectorContent: {
+    flex: 1,
+  },
+  selectorLabel: {
+    fontSize: 12,
+    color: COLORS.textGray,
+    marginBottom: 4,
+  },
+  selectorValue: {
+    fontSize: 16,
+    color: COLORS.black,
+  },
+  updateButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 30,
-    paddingVertical: 15,
+    padding: 15,
     borderRadius: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  updateButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  signOutButton: {
+    backgroundColor: COLORS.errorbanner,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: "auto",
   },
   signOutText: {
     color: COLORS.white,
     fontSize: 16,
     fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    padding: 20,
+    maxHeight: "70%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.black,
+    marginBottom: 15,
+  },
+  modalItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderGray,
+  },
+  modalItemText: {
+    fontSize: 16,
+    color: COLORS.black,
   },
 });

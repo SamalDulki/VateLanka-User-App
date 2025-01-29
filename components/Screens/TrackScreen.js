@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, SafeAreaView, StyleSheet } from 'react-native';
-import { COLORS } from '../utils/Constants';
-import CustomText from '../utils/CustomText';
+import React from "react";
+import { View, SafeAreaView, StyleSheet } from "react-native";
+import { COLORS } from "../utils/Constants";
+import CustomText from "../utils/CustomText";
 
 export function TrackScreen() {
   return (
@@ -14,19 +14,19 @@ export function TrackScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: COLORS.white,
-    },
-    content: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-    },
-    heading: {
-      fontSize: 28,
-      fontWeight: '600',
-      color: COLORS.primary,
-    },
-  });
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  heading: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+});

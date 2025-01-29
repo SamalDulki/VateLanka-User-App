@@ -44,6 +44,7 @@ export default function HomeScreen({ navigation }) {
   const [subGreeting, setSubGreeting] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [newsKey, setNewsKey] = useState(0);
+  const [locationText, setLocationText] = useState("Select Location");
 
   const fetchUserData = async () => {
     const user = auth.currentUser;
@@ -87,6 +88,21 @@ export default function HomeScreen({ navigation }) {
     fetchSubGreeting();
   }, []);
 
+  useEffect(() => {
+    const fetchLocation = async () => {
+      try {
+        const savedLocation = await AsyncStorage.getItem("userLocation");
+        if (savedLocation) {
+          setLocationText(savedLocation);
+        }
+      } catch (error) {
+        console.error("Error fetching location:", error);
+      }
+    };
+
+    fetchLocation();
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -103,9 +119,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.header}>
           <View style={styles.locationContainer}>
             <Icon name="map-pin" size={20} color={COLORS.gpslogo} />
-            <CustomText style={styles.locationText}>
-              GP Square, Bambalapitiya
-            </CustomText>
+            <CustomText style={styles.locationText}>{locationText}</CustomText>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
             <ProfileIcon />

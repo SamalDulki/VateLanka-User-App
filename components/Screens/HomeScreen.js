@@ -17,6 +17,7 @@ import { doc, getDoc } from "firebase/firestore";
 import Svg, { Circle, Path } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NewsFeed } from "../api/NewsFeed";
+import { useFocusEffect } from "@react-navigation/native";
 
 const ProfileIcon = () => (
   <Svg width="40" height="40" viewBox="0 0 40 40">
@@ -47,12 +48,32 @@ export default function HomeScreen({ navigation }) {
   const [locationText, setLocationText] = useState("Select Location");
 
   const fetchUserData = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      const userDoc = await getDoc(doc(firestore, "users", user.uid));
-      if (userDoc.exists()) {
-        setUserName(userDoc.data().name);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const userDoc = await getDoc(doc(firestore, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUserName(userData.name);
+
+          // Update location text based on Firestore data
+          if (userData.wardName && userData.districtName) {
+            const locationString = `${userData.wardName}, ${userData.districtName}`;
+            setLocationText(locationString);
+            await AsyncStorage.setItem("userLocation", locationString);
+          } else {
+            setLocationText("Select Location");
+            await AsyncStorage.removeItem("userLocation");
+          }
+        }
+      } else {
+        // Reset states if no user is logged in
+        setUserName("");
+        setLocationText("Select Location");
+        await AsyncStorage.removeItem("userLocation");
       }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
     }
   };
 
@@ -82,25 +103,20 @@ export default function HomeScreen({ navigation }) {
     setRefreshing(false);
   };
 
+  // Update data when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchUserData();
+      setGreeting(updateGreeting());
+      fetchSubGreeting();
+    }, [])
+  );
+
+  // Initial data load
   useEffect(() => {
     fetchUserData();
     setGreeting(updateGreeting());
     fetchSubGreeting();
-  }, []);
-
-  useEffect(() => {
-    const fetchLocation = async () => {
-      try {
-        const savedLocation = await AsyncStorage.getItem("userLocation");
-        if (savedLocation) {
-          setLocationText(savedLocation);
-        }
-      } catch (error) {
-        console.error("Error fetching location:", error);
-      }
-    };
-
-    fetchLocation();
   }, []);
 
   return (

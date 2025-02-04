@@ -25,16 +25,35 @@ export const saveUserData = async (uid, userData) => {
   }
 };
 
+export const verifyAndUpdatePhone = async (uid, phoneNumber, phoneVerified) => {
+  try {
+    const userRef = doc(firestore, "users", uid);
+    await updateDoc(userRef, {
+      phoneNumber,
+      phoneVerified,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error updating phone verification:", error);
+    throw error;
+  }
+};
+
 // Fetch enabled municipal councils
 export const fetchMunicipalCouncils = async () => {
-  const councilsRef = collection(firestore, "municipalCouncils");
-  const q = query(councilsRef, where("isEnabled", "==", true));
-  const snapshot = await getDocs(q);
+  try {
+    const councilsRef = collection(firestore, "municipalCouncils");
+    const q = query(councilsRef, where("isEnabled", "==", true));
+    const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error("Error fetching municipal councils:", error);
+    throw error;
+  }
 };
 
 // Fetch user profile data
@@ -61,7 +80,7 @@ export const fetchDistrictsForMunicipalCouncil = async (municipalCouncilId) => {
     const districtSnapshot = await getDocs(districtRef);
     return districtSnapshot.docs.map((doc) => ({
       id: doc.id,
-      name: doc.data().name,
+      ...doc.data(),
     }));
   } catch (error) {
     console.error("Error fetching districts:", error);
@@ -70,6 +89,7 @@ export const fetchDistrictsForMunicipalCouncil = async (municipalCouncilId) => {
 };
 
 // Fetch wards for a district
+
 export const fetchWardsForDistrict = async (municipalCouncilId, districtId) => {
   try {
     const wardRef = collection(
@@ -79,7 +99,7 @@ export const fetchWardsForDistrict = async (municipalCouncilId, districtId) => {
     const wardSnapshot = await getDocs(wardRef);
     return wardSnapshot.docs.map((doc) => ({
       id: doc.id,
-      name: doc.data().name,
+      ...doc.data(),
     }));
   } catch (error) {
     console.error("Error fetching wards:", error);
@@ -91,10 +111,26 @@ export const fetchWardsForDistrict = async (municipalCouncilId, districtId) => {
 export const updateUserLocation = async (uid, locationData) => {
   try {
     const userRef = doc(firestore, "users", uid);
-    await updateDoc(userRef, locationData);
+    await updateDoc(userRef, {
+      ...locationData,
+      updatedAt: serverTimestamp(),
+    });
     return true;
   } catch (error) {
     console.error("Error updating user location:", error);
+    throw error;
+  }
+};
+
+export const updateUserProfile = async (uid, userData) => {
+  try {
+    const userRef = doc(firestore, "users", uid);
+    await updateDoc(userRef, {
+      ...userData,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error updating user profile:", error);
     throw error;
   }
 };

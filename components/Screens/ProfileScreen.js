@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -7,6 +7,8 @@ import {
   ScrollView,
   ActivityIndicator,
   SafeAreaView,
+  TextInput,
+  Alert,
 } from "react-native";
 import { auth } from "../utils/firebaseConfig";
 import CustomText from "../utils/CustomText";
@@ -18,9 +20,13 @@ import {
   fetchDistrictsForMunicipalCouncil,
   fetchWardsForDistrict,
   updateUserLocation,
+  updateUserProfile,
 } from "../services/firebaseFirestore";
+import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
+import { PhoneAuthProvider, updatePhoneNumber } from "firebase/auth";
 
 export default function ProfileScreen({ navigation }) {
+  const recaptchaVerifier = useRef(null);
   const [userMunicipalCouncil, setUserMunicipalCouncil] = useState("");
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
@@ -34,6 +40,16 @@ export default function ProfileScreen({ navigation }) {
   const [locationLocked, setLocationLocked] = useState(false);
   const [selectedDistrictName, setSelectedDistrictName] = useState("");
   const [selectedWardName, setSelectedWardName] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [nic, setNic] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [verificationId, setVerificationId] = useState("");
+  const [otp, setOtp] = useState("");
+  const [cooldown, setCooldown] = useState(0);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -45,6 +61,16 @@ export default function ProfileScreen({ navigation }) {
     }
   }, [selectedDistrict]);
 
+  useEffect(() => {
+    let interval;
+    if (cooldown > 0) {
+      interval = setInterval(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [cooldown]);
+
   const fetchUserData = async () => {
     setLoading(true);
     try {
@@ -53,8 +79,13 @@ export default function ProfileScreen({ navigation }) {
         const userData = await fetchUserProfile(user.uid);
         if (userData) {
           setUserName(userData.name);
+          setEditedName(userData.name);
           setUserEmail(userData.email);
           setUserMunicipalCouncil(userData.municipalCouncil);
+          setNic(userData.nic || "");
+          setBirthday(userData.birthday || "");
+          setPhoneNumber(userData.phoneNumber || "");
+          setPhoneVerified(userData.phoneVerified || false);
 
           if (userData.district && userData.ward) {
             setSelectedDistrict(userData.district);
@@ -71,6 +102,135 @@ export default function ProfileScreen({ navigation }) {
       console.error("Error fetching user data:", error);
     }
     setLoading(false);
+  };
+
+  const validateNIC = (nic) => {
+    const nicPattern1 = /^\d{9}[vV]$/; // XXXXXXXXXv format
+    const nicPattern2 = /^\d{12}$/; // XXXXXXXXXXXX format
+    return nicPattern1.test(nic) || nicPattern2.test(nic);
+  };
+
+  const validateBirthday = (date) => {
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!regex.test(date)) return false;
+    const birthday = new Date(date);
+    const today = new Date();
+    return birthday < today && birthday > new Date("1900-01-01");
+  };
+
+  const validatePhoneNumber = (number) => {
+    const regex = /^(?:\+94|0)?[1-9]\d{8}$/;
+    return regex.test(number);
+  };
+
+  const formatPhoneNumber = (number) => {
+    if (!number) return "";
+    // Remove all non-digit characters
+    let cleaned = number.replace(/\D/g, "");
+
+    // Handle different formats
+    if (cleaned.startsWith("94")) {
+      return "+" + cleaned;
+    } else if (cleaned.startsWith("0")) {
+      return "+94" + cleaned.slice(1);
+    } else if (cleaned.length === 9) {
+      return "+94" + cleaned;
+    }
+    return "+94" + cleaned;
+  };
+
+  const handleSendVerificationCode = async () => {
+    if (cooldown > 0) return;
+
+    try {
+      setLoading(true);
+      const formattedPhone = formatPhoneNumber(phoneNumber);
+
+      if (!formattedPhone.match(/^\+94\d{9}$/)) {
+        Alert.alert("Error", "Please enter a valid phone number");
+        return;
+      }
+
+      const phoneProvider = new PhoneAuthProvider(auth);
+      const verificationId = await phoneProvider.verifyPhoneNumber(
+        formattedPhone,
+        recaptchaVerifier.current
+      );
+
+      setVerificationId(verificationId);
+      setShowOtpModal(true);
+      setCooldown(59);
+      Alert.alert("Success", "Verification code sent successfully!");
+    } catch (error) {
+      console.error("Phone verification error:", error);
+      Alert.alert(
+        "Error",
+        "Failed to send verification code. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!verificationId || !otp) return;
+
+    try {
+      setLoading(true);
+      const credential = PhoneAuthProvider.credential(verificationId, otp);
+      const user = auth.currentUser;
+      await updatePhoneNumber(user, credential);
+      setPhoneVerified(true);
+      setShowOtpModal(false);
+      Alert.alert("Success", "Phone number verified successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Invalid verification code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!editedName.trim()) {
+      Alert.alert("Error", "Name cannot be empty");
+      return;
+    }
+
+    if (nic && !validateNIC(nic)) {
+      Alert.alert("Error", "Invalid NIC format");
+      return;
+    }
+
+    if (birthday && !validateBirthday(birthday)) {
+      Alert.alert("Error", "Invalid birthday format (YYYY-MM-DD)");
+      return;
+    }
+
+    if (phoneNumber && !validatePhoneNumber(phoneNumber)) {
+      Alert.alert("Error", "Invalid phone number");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const user = auth.currentUser;
+      if (user) {
+        await updateUserProfile(user.uid, {
+          name: editedName.trim(),
+          nic,
+          birthday,
+          phoneNumber: formatPhoneNumber(phoneNumber),
+          phoneVerified,
+        });
+        setUserName(editedName.trim());
+        setIsEditing(false);
+        Alert.alert("Success", "Profile updated successfully!");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchDistricts = async (municipalCouncilId) => {
@@ -141,6 +301,31 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const ProfileField = ({
+    label,
+    value,
+    onChangeText,
+    placeholder,
+    editable = true,
+    keyboardType = "default",
+  }) => (
+    <View style={styles.fieldContainer}>
+      <CustomText style={styles.fieldLabel}>{label}</CustomText>
+      <TextInput
+        style={[styles.input, !editable && styles.disabledInput]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        editable={editable && isEditing}
+        keyboardType={keyboardType}
+        autoCapitalize="none"
+        autoCorrect={false}
+        blurOnSubmit={false}
+        returnKeyType="next"
+      />
+    </View>
+  );
+
   const LocationDisplay = () => (
     <View style={styles.locationDisplay}>
       <View style={styles.locationHeader}>
@@ -192,6 +377,10 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -206,6 +395,96 @@ export default function ProfileScreen({ navigation }) {
                   <CustomText style={styles.userName}>{userName}</CustomText>
                   <CustomText style={styles.userEmail}>{userEmail}</CustomText>
                 </View>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => setIsEditing(!isEditing)}
+                >
+                  <Icon
+                    name={isEditing ? "check" : "edit"}
+                    size={24}
+                    color={COLORS.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formSection}>
+                <ProfileField
+                  label="Name"
+                  value={editedName}
+                  onChangeText={setEditedName}
+                  placeholder="Enter your name"
+                />
+
+                <ProfileField
+                  label="NIC"
+                  value={nic}
+                  onChangeText={setNic}
+                  placeholder="Enter NIC (9 digits + v or 12 digits)"
+                />
+
+                <ProfileField
+                  label="Birthday"
+                  value={birthday}
+                  onChangeText={setBirthday}
+                  placeholder="YYYY-MM-DD"
+                />
+
+                <View style={styles.phoneContainer}>
+                  <View style={styles.phonePrefix}>
+                    <CustomText style={styles.phoneFlag}>🇱🇰</CustomText>
+                    <CustomText style={styles.phonePrefixText}>+94</CustomText>
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.phoneInput,
+                      !isEditing && styles.disabledInput,
+                    ]}
+                    value={phoneNumber.replace(/^\+94/, "")}
+                    onChangeText={(text) => setPhoneNumber(text)}
+                    placeholder="7XXXXXXXX"
+                    editable={isEditing && !phoneVerified}
+                    keyboardType="phone-pad"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    blurOnSubmit={false}
+                    returnKeyType="done"
+                  />
+                  {isEditing && !phoneVerified && (
+                    <TouchableOpacity
+                      style={[
+                        styles.verifyButton,
+                        cooldown > 0 && styles.disabledButton,
+                      ]}
+                      onPress={handleSendVerificationCode}
+                      disabled={cooldown > 0}
+                    >
+                      <CustomText style={styles.verifyButtonText}>
+                        {cooldown > 0 ? `${cooldown}s` : "Verify"}
+                      </CustomText>
+                    </TouchableOpacity>
+                  )}
+                  {phoneVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon
+                        name="check-circle"
+                        size={20}
+                        color={COLORS.success}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {isEditing && (
+                  <TouchableOpacity
+                    style={styles.updateButton}
+                    onPress={handleUpdateProfile}
+                  >
+                    <Icon name="save" size={20} color={COLORS.white} />
+                    <CustomText style={styles.updateButtonText}>
+                      Save Changes
+                    </CustomText>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <View style={styles.locationSection}>
@@ -345,6 +624,44 @@ export default function ProfileScreen({ navigation }) {
                   </ScrollView>
                 </View>
               </TouchableOpacity>
+            </Modal>
+            <Modal
+              visible={showOtpModal}
+              transparent={true}
+              animationType="fade"
+              onRequestClose={() => setShowOtpModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.otpModalContent}>
+                  <CustomText style={styles.modalTitle}>
+                    Enter Verification Code
+                  </CustomText>
+                  <TextInput
+                    style={styles.otpInput}
+                    value={otp}
+                    onChangeText={setOtp}
+                    placeholder="Enter 6-digit code"
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                  <TouchableOpacity
+                    style={styles.verifyOtpButton}
+                    onPress={handleVerifyOtp}
+                  >
+                    <CustomText style={styles.verifyOtpButtonText}>
+                      Verify Code
+                    </CustomText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setShowOtpModal(false)}
+                  >
+                    <CustomText style={styles.cancelButtonText}>
+                      Cancel
+                    </CustomText>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </Modal>
           </>
         )}
@@ -539,5 +856,142 @@ const styles = StyleSheet.create({
   modalItemText: {
     fontSize: 16,
     color: COLORS.black,
+  },
+  formSection: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    marginBottom: 30,
+    padding: 15,
+  },
+  fieldContainer: {
+    marginBottom: 20,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    color: COLORS.textGray,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: COLORS.black,
+    backgroundColor: COLORS.white,
+  },
+  disabledInput: {
+    backgroundColor: COLORS.secondary,
+    color: COLORS.textGray,
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  phoneContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  phonePrefix: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.secondary,
+    padding: 12,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  phoneFlag: {
+    fontSize: 16,
+    marginRight: 4,
+  },
+  phonePrefixText: {
+    fontSize: 16,
+    color: COLORS.textGray,
+    fontWeight: "600",
+  },
+  phoneInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: COLORS.black,
+  },
+  verifyButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  verifyButtonText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  verifiedBadge: {
+    marginLeft: 8,
+    padding: 8,
+  },
+  otpModalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 20,
+    width: "90%",
+    alignSelf: "center",
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
+    borderRadius: 12,
+    padding: 15,
+    fontSize: 24,
+    textAlign: "center",
+    letterSpacing: 8,
+    marginVertical: 20,
+    color: COLORS.black,
+  },
+  verifyOtpButton: {
+    backgroundColor: COLORS.primary,
+    padding: 15,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  verifyOtpButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  cancelButton: {
+    padding: 15,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    color: COLORS.textGray,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  phoneInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: COLORS.black,
+    backgroundColor: COLORS.white,
   },
 });

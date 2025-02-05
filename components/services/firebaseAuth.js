@@ -16,10 +16,8 @@ export const signUpWithEmail = async (email, password) => {
     );
     const user = userCredential.user;
 
-    // Send email verification
     await sendEmailVerification(user);
 
-    // Important: Sign out immediately after signup
     await auth.signOut();
 
     return user;

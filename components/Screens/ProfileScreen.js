@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -22,11 +22,8 @@ import {
   updateUserLocation,
   updateUserProfile,
 } from "../services/firebaseFirestore";
-import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
-import { PhoneAuthProvider, updatePhoneNumber } from "firebase/auth";
 
 export default function ProfileScreen({ navigation }) {
-  const recaptchaVerifier = useRef(null);
   const [userMunicipalCouncil, setUserMunicipalCouncil] = useState("");
   const [districts, setDistricts] = useState([]);
   const [wards, setWards] = useState([]);
@@ -45,11 +42,6 @@ export default function ProfileScreen({ navigation }) {
   const [nic, setNic] = useState("");
   const [birthday, setBirthday] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [verificationId, setVerificationId] = useState("");
-  const [otp, setOtp] = useState("");
-  const [cooldown, setCooldown] = useState(0);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -60,16 +52,6 @@ export default function ProfileScreen({ navigation }) {
       fetchWards();
     }
   }, [selectedDistrict]);
-
-  useEffect(() => {
-    let interval;
-    if (cooldown > 0) {
-      interval = setInterval(() => {
-        setCooldown((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [cooldown]);
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -85,7 +67,6 @@ export default function ProfileScreen({ navigation }) {
           setNic(userData.nic || "");
           setBirthday(userData.birthday || "");
           setPhoneNumber(userData.phoneNumber || "");
-          setPhoneVerified(userData.phoneVerified || false);
 
           if (userData.district && userData.ward) {
             setSelectedDistrict(userData.district);
@@ -105,8 +86,8 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const validateNIC = (nic) => {
-    const nicPattern1 = /^\d{9}[vV]$/; // XXXXXXXXXv format
-    const nicPattern2 = /^\d{12}$/; // XXXXXXXXXXXX format
+    const nicPattern1 = /^\d{9}[vV]$/; 
+    const nicPattern2 = /^\d{12}$/;
     return nicPattern1.test(nic) || nicPattern2.test(nic);
   };
 
@@ -125,10 +106,8 @@ export default function ProfileScreen({ navigation }) {
 
   const formatPhoneNumber = (number) => {
     if (!number) return "";
-    // Remove all non-digit characters
     let cleaned = number.replace(/\D/g, "");
 
-    // Handle different formats
     if (cleaned.startsWith("94")) {
       return "+" + cleaned;
     } else if (cleaned.startsWith("0")) {
@@ -137,57 +116,6 @@ export default function ProfileScreen({ navigation }) {
       return "+94" + cleaned;
     }
     return "+94" + cleaned;
-  };
-
-  const handleSendVerificationCode = async () => {
-    if (cooldown > 0) return;
-
-    try {
-      setLoading(true);
-      const formattedPhone = formatPhoneNumber(phoneNumber);
-
-      if (!formattedPhone.match(/^\+94\d{9}$/)) {
-        Alert.alert("Error", "Please enter a valid phone number");
-        return;
-      }
-
-      const phoneProvider = new PhoneAuthProvider(auth);
-      const verificationId = await phoneProvider.verifyPhoneNumber(
-        formattedPhone,
-        recaptchaVerifier.current
-      );
-
-      setVerificationId(verificationId);
-      setShowOtpModal(true);
-      setCooldown(59);
-      Alert.alert("Success", "Verification code sent successfully!");
-    } catch (error) {
-      console.error("Phone verification error:", error);
-      Alert.alert(
-        "Error",
-        "Failed to send verification code. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!verificationId || !otp) return;
-
-    try {
-      setLoading(true);
-      const credential = PhoneAuthProvider.credential(verificationId, otp);
-      const user = auth.currentUser;
-      await updatePhoneNumber(user, credential);
-      setPhoneVerified(true);
-      setShowOtpModal(false);
-      Alert.alert("Success", "Phone number verified successfully!");
-    } catch (error) {
-      Alert.alert("Error", "Invalid verification code. Please try again.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleUpdateProfile = async () => {
@@ -220,7 +148,6 @@ export default function ProfileScreen({ navigation }) {
           nic,
           birthday,
           phoneNumber: formatPhoneNumber(phoneNumber),
-          phoneVerified,
         });
         setUserName(editedName.trim());
         setIsEditing(false);
@@ -377,10 +304,6 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <FirebaseRecaptchaVerifierModal
-        ref={recaptchaVerifier}
-        firebaseConfig={auth.app.options}
-      />
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -440,38 +363,17 @@ export default function ProfileScreen({ navigation }) {
                       !isEditing && styles.disabledInput,
                     ]}
                     value={phoneNumber.replace(/^\+94/, "")}
-                    onChangeText={(text) => setPhoneNumber(text)}
+                    onChangeText={(text) => {
+                      const cleanedText = text
+                        .replace(/[^\d]/g, "")
+                        .slice(0, 9);
+                      setPhoneNumber(cleanedText);
+                    }}
                     placeholder="7XXXXXXXX"
-                    editable={isEditing && !phoneVerified}
-                    keyboardType="phone-pad"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    blurOnSubmit={false}
-                    returnKeyType="done"
+                    editable={isEditing}
+                    keyboardType="number-pad"
+                    maxLength={9}
                   />
-                  {isEditing && !phoneVerified && (
-                    <TouchableOpacity
-                      style={[
-                        styles.verifyButton,
-                        cooldown > 0 && styles.disabledButton,
-                      ]}
-                      onPress={handleSendVerificationCode}
-                      disabled={cooldown > 0}
-                    >
-                      <CustomText style={styles.verifyButtonText}>
-                        {cooldown > 0 ? `${cooldown}s` : "Verify"}
-                      </CustomText>
-                    </TouchableOpacity>
-                  )}
-                  {phoneVerified && (
-                    <View style={styles.verifiedBadge}>
-                      <Icon
-                        name="check-circle"
-                        size={20}
-                        color={COLORS.success}
-                      />
-                    </View>
-                  )}
                 </View>
 
                 {isEditing && (
@@ -505,25 +407,14 @@ export default function ProfileScreen({ navigation }) {
 
                     <LocationSelector
                       title="District"
-                      value={
-                        selectedDistrictName ||
-                        (selectedDistrict
-                          ? districts.find((d) => d.id === selectedDistrict)
-                              ?.name
-                          : "")
-                      }
+                      value={selectedDistrictName}
                       onPress={() => setShowDistrictModal(true)}
                       disabled={locationLocked}
                     />
 
                     <LocationSelector
                       title="Ward"
-                      value={
-                        selectedWardName ||
-                        (selectedWard
-                          ? wards.find((w) => w.id === selectedWard)?.name
-                          : "")
-                      }
+                      value={selectedWardName}
                       onPress={() =>
                         selectedDistrict ? setShowWardModal(true) : null
                       }
@@ -624,44 +515,6 @@ export default function ProfileScreen({ navigation }) {
                   </ScrollView>
                 </View>
               </TouchableOpacity>
-            </Modal>
-            <Modal
-              visible={showOtpModal}
-              transparent={true}
-              animationType="fade"
-              onRequestClose={() => setShowOtpModal(false)}
-            >
-              <View style={styles.modalOverlay}>
-                <View style={styles.otpModalContent}>
-                  <CustomText style={styles.modalTitle}>
-                    Enter Verification Code
-                  </CustomText>
-                  <TextInput
-                    style={styles.otpInput}
-                    value={otp}
-                    onChangeText={setOtp}
-                    placeholder="Enter 6-digit code"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                  <TouchableOpacity
-                    style={styles.verifyOtpButton}
-                    onPress={handleVerifyOtp}
-                  >
-                    <CustomText style={styles.verifyOtpButtonText}>
-                      Verify Code
-                    </CustomText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => setShowOtpModal(false)}
-                  >
-                    <CustomText style={styles.cancelButtonText}>
-                      Cancel
-                    </CustomText>
-                  </TouchableOpacity>
-                </View>
-              </View>
             </Modal>
           </>
         )}
@@ -917,71 +770,6 @@ const styles = StyleSheet.create({
   phonePrefixText: {
     fontSize: 16,
     color: COLORS.textGray,
-    fontWeight: "600",
-  },
-  phoneInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: COLORS.borderGray,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    color: COLORS.black,
-  },
-  verifyButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  verifyButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  verifiedBadge: {
-    marginLeft: 8,
-    padding: 8,
-  },
-  otpModalContent: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 20,
-    width: "90%",
-    alignSelf: "center",
-  },
-  otpInput: {
-    borderWidth: 1,
-    borderColor: COLORS.borderGray,
-    borderRadius: 12,
-    padding: 15,
-    fontSize: 24,
-    textAlign: "center",
-    letterSpacing: 8,
-    marginVertical: 20,
-    color: COLORS.black,
-  },
-  verifyOtpButton: {
-    backgroundColor: COLORS.primary,
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  verifyOtpButtonText: {
-    color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: COLORS.textGray,
-    fontSize: 16,
     fontWeight: "600",
   },
   phoneInput: {

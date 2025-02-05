@@ -25,20 +25,6 @@ export const saveUserData = async (uid, userData) => {
   }
 };
 
-export const verifyAndUpdatePhone = async (uid, phoneNumber, phoneVerified) => {
-  try {
-    const userRef = doc(firestore, "users", uid);
-    await updateDoc(userRef, {
-      phoneNumber,
-      phoneVerified,
-      updatedAt: serverTimestamp(),
-    });
-  } catch (error) {
-    console.error("Error updating phone verification:", error);
-    throw error;
-  }
-};
-
 // Fetch enabled municipal councils
 export const fetchMunicipalCouncils = async () => {
   try {
@@ -89,7 +75,6 @@ export const fetchDistrictsForMunicipalCouncil = async (municipalCouncilId) => {
 };
 
 // Fetch wards for a district
-
 export const fetchWardsForDistrict = async (municipalCouncilId, districtId) => {
   try {
     const wardRef = collection(
@@ -122,6 +107,7 @@ export const updateUserLocation = async (uid, locationData) => {
   }
 };
 
+// Update user profile
 export const updateUserProfile = async (uid, userData) => {
   try {
     const userRef = doc(firestore, "users", uid);

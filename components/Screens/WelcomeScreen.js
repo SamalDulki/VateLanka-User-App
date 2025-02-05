@@ -14,7 +14,7 @@ export default function WelcomeScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <CustomText style={styles.welcomeText}>Welcome!</CustomText>
+        <CustomText style={styles.welcomeText}>Welcome</CustomText>
         <CustomText style={styles.subtitle}>How are you today?</CustomText>
       </View>
 

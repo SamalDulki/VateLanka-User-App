@@ -86,7 +86,7 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const validateNIC = (nic) => {
-    const nicPattern1 = /^\d{9}[vV]$/; 
+    const nicPattern1 = /^\d{9}[vV]$/;
     const nicPattern2 = /^\d{12}$/;
     return nicPattern1.test(nic) || nicPattern2.test(nic);
   };
@@ -228,31 +228,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const ProfileField = ({
-    label,
-    value,
-    onChangeText,
-    placeholder,
-    editable = true,
-    keyboardType = "default",
-  }) => (
-    <View style={styles.fieldContainer}>
-      <CustomText style={styles.fieldLabel}>{label}</CustomText>
-      <TextInput
-        style={[styles.input, !editable && styles.disabledInput]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        editable={editable && isEditing}
-        keyboardType={keyboardType}
-        autoCapitalize="none"
-        autoCorrect={false}
-        blurOnSubmit={false}
-        returnKeyType="next"
-      />
-    </View>
-  );
-
   const LocationDisplay = () => (
     <View style={styles.locationDisplay}>
       <View style={styles.locationHeader}>
@@ -331,26 +306,44 @@ export default function ProfileScreen({ navigation }) {
               </View>
 
               <View style={styles.formSection}>
-                <ProfileField
-                  label="Name"
-                  value={editedName}
-                  onChangeText={setEditedName}
-                  placeholder="Enter your name"
-                />
+                <View style={styles.fieldContainer}>
+                  <CustomText style={styles.fieldLabel}>Name</CustomText>
+                  <TextInput
+                    style={[styles.input, !isEditing && styles.disabledInput]}
+                    value={editedName}
+                    onChangeText={setEditedName}
+                    placeholder="Enter your name"
+                    editable={isEditing}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
 
-                <ProfileField
-                  label="NIC"
-                  value={nic}
-                  onChangeText={setNic}
-                  placeholder="Enter NIC (9 digits + v or 12 digits)"
-                />
+                <View style={styles.fieldContainer}>
+                  <CustomText style={styles.fieldLabel}>NIC</CustomText>
+                  <TextInput
+                    style={[styles.input, !isEditing && styles.disabledInput]}
+                    value={nic}
+                    onChangeText={setNic}
+                    placeholder="Enter NIC (9 digits + v or 12 digits)"
+                    editable={isEditing}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
 
-                <ProfileField
-                  label="Birthday"
-                  value={birthday}
-                  onChangeText={setBirthday}
-                  placeholder="YYYY-MM-DD"
-                />
+                <View style={styles.fieldContainer}>
+                  <CustomText style={styles.fieldLabel}>Birthday</CustomText>
+                  <TextInput
+                    style={[styles.input, !isEditing && styles.disabledInput]}
+                    value={birthday}
+                    onChangeText={setBirthday}
+                    placeholder="YYYY-MM-DD"
+                    editable={isEditing}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
 
                 <View style={styles.phoneContainer}>
                   <View style={styles.phonePrefix}>

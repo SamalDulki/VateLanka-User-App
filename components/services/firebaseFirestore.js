@@ -120,3 +120,27 @@ export const updateUserProfile = async (uid, userData) => {
     throw error;
   }
 };
+
+// Fetch Collection Schedules
+export const fetchUserSchedules = async (uid) => {
+  try {
+    const userData = await fetchUserProfile(uid);
+    if (!userData?.municipalCouncil || !userData?.district || !userData?.ward) {
+      throw new Error("Location not set");
+    }
+
+    const schedulesRef = collection(
+      firestore,
+      `municipalCouncils/${userData.municipalCouncil}/Districts/${userData.district}/Wards/${userData.ward}/schedules`
+    );
+    const schedulesSnapshot = await getDocs(schedulesRef);
+
+    return schedulesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error("Error fetching schedules:", error);
+    throw error;
+  }
+};

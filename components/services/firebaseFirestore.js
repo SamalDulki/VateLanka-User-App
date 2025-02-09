@@ -135,10 +135,16 @@ export const fetchUserSchedules = async (uid) => {
     );
     const schedulesSnapshot = await getDocs(schedulesRef);
 
-    return schedulesSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    return schedulesSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        wasteType: data.wasteType,
+        day: data.day,
+        frequency: data.frequency,
+        timeSlot: data.timeSlot || null, 
+      };
+    });
   } catch (error) {
     console.error("Error fetching schedules:", error);
     throw error;

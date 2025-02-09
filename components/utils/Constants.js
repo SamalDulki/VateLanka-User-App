@@ -10,4 +10,7 @@ export const COLORS = {
   errorbanner: "#ff4444", // Error banner color
   iconinactive: "#999999", // Inactive icon color
   gpslogo: "#f70505", // Google Maps logo color
+  DEGRADABLE_WASTE: "#2E7D32", // Green color for degradable waste
+  RECYCLABLE_WASTE: "#1976D2", // Blue color for recyclable waste
+  NON_RECYCLABLE_WASTE: "#D32F2F" // Red color for non-recyclable waste
 };

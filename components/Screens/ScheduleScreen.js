@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   SafeAreaView,
@@ -6,6 +6,9 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Animated,
+  TouchableOpacity,
+  Switch,
 } from "react-native";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
@@ -14,10 +17,12 @@ import { fetchUserSchedules } from "../services/firebaseFirestore";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useFocusEffect } from "@react-navigation/native";
 
+const CALENDAR_STRIP_HEIGHT = 90;
+
 const WasteTypeColors = {
-  Degradable: COLORS.primary,
-  Recyclable: COLORS.successbanner,
-  "Non Recyclable": COLORS.errorbanner,
+  Degradable: COLORS.DEGRADABLE_WASTE,
+  Recyclable: COLORS.RECYCLABLE_WASTE,
+  "Non Recyclable": COLORS.NON_RECYCLABLE_WASTE,
 };
 
 const WasteTypeIcons = {
@@ -26,11 +31,184 @@ const WasteTypeIcons = {
   "Non Recyclable": "delete-forever",
 };
 
+const CalendarDay = ({ date, dayName, isSelected, collections, onPress }) => {
+  const hasCollections = collections.length > 0;
+  const dotColors = [
+    ...new Set(collections.map((c) => WasteTypeColors[c.wasteType])),
+  ];
+
+  return (
+    <TouchableOpacity
+      style={[styles.calendarDay, isSelected && styles.selectedCalendarDay]}
+      onPress={onPress}
+    >
+      <CustomText
+        style={[
+          styles.calendarDayName,
+          isSelected && styles.selectedCalendarDayText,
+        ]}
+      >
+        {dayName.slice(0, 3)}
+      </CustomText>
+      <CustomText
+        style={[
+          styles.calendarDayNumber,
+          isSelected && styles.selectedCalendarDayText,
+        ]}
+      >
+        {date.split(" ")[1]}
+      </CustomText>
+      <View style={styles.calendarDotContainer}>
+        {hasCollections ? (
+          dotColors.map((color, index) => (
+            <View
+              key={index}
+              style={[styles.calendarDot, { backgroundColor: color }]}
+            />
+          ))
+        ) : (
+          <View style={styles.calendarDotPlaceholder} />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const CollectionCard = ({ collection, style }) => {
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.collectionItem,
+          { backgroundColor: WasteTypeColors[collection.wasteType] },
+        ]}
+      >
+        <View style={styles.collectionIconContainer}>
+          <Icon
+            name={WasteTypeIcons[collection.wasteType]}
+            size={24}
+            color={COLORS.white}
+          />
+        </View>
+        <View style={styles.collectionContent}>
+          <CustomText style={styles.collectionText}>
+            {collection.wasteType}
+          </CustomText>
+          <View style={styles.collectionDetails}>
+            {collection.timeSlot && (
+              <View style={styles.timeSlotContainer}>
+                <Icon name="access-time" size={14} color={COLORS.white} />
+                <CustomText style={styles.timeSlotText}>
+                  {`${collection.timeSlot.start} - ${collection.timeSlot.end}`}
+                </CustomText>
+              </View>
+            )}
+            {collection.frequency && (
+              <View style={styles.frequencyContainer}>
+                <Icon name="repeat" size={14} color={COLORS.white} />
+                <CustomText style={styles.frequencyText}>
+                  {collection.frequency}
+                </CustomText>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+};
+
+const UpcomingCollectionCard = ({ collection, date, dayName }) => {
+  return (
+    <View style={styles.upcomingCard}>
+      <View
+        style={[
+          styles.upcomingColorStrip,
+          { backgroundColor: WasteTypeColors[collection.wasteType] },
+        ]}
+      />
+      <View style={styles.upcomingContent}>
+        <View style={styles.upcomingHeader}>
+          <View style={styles.upcomingDateContainer}>
+            <Icon name="event" size={16} color={COLORS.textGray} />
+            <CustomText style={styles.upcomingDate}>
+              {`${dayName}, ${date}`}
+            </CustomText>
+          </View>
+          <View style={styles.upcomingTypeContainer}>
+            <Icon
+              name={WasteTypeIcons[collection.wasteType]}
+              size={16}
+              color={WasteTypeColors[collection.wasteType]}
+            />
+            <CustomText
+              style={[
+                styles.upcomingType,
+                { color: WasteTypeColors[collection.wasteType] },
+              ]}
+            >
+              {collection.wasteType}
+            </CustomText>
+          </View>
+        </View>
+        <View style={styles.upcomingDetails}>
+          {collection.timeSlot && (
+            <View style={styles.upcomingDetailItem}>
+              <Icon name="access-time" size={14} color={COLORS.textGray} />
+              <CustomText style={styles.upcomingDetailText}>
+                {`${collection.timeSlot.start} - ${collection.timeSlot.end}`}
+              </CustomText>
+            </View>
+          )}
+          {collection.frequency && (
+            <View style={styles.upcomingDetailItem}>
+              <Icon name="repeat" size={14} color={COLORS.textGray} />
+              <CustomText style={styles.upcomingDetailText}>
+                {collection.frequency}
+              </CustomText>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+};
+
 export function ScheduleScreen() {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const scrollViewRef = useRef(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -86,7 +264,6 @@ export function ScheduleScreen() {
         day: "numeric",
       });
 
-      // Find collections for this day
       const collections = scheduleData.filter(
         (schedule) => schedule.day === dayName || schedule.day === "All"
       );
@@ -100,6 +277,27 @@ export function ScheduleScreen() {
     }
 
     return next7Days;
+  };
+
+  const getUpcomingCollections = () => {
+    let upcoming = [];
+    schedules.forEach((daySchedule, index) => {
+      if (index > selectedDayIndex) {
+        daySchedule.collections.forEach((collection) => {
+          upcoming.push({
+            ...collection,
+            date: daySchedule.date,
+            dayName: daySchedule.dayLabel,
+          });
+        });
+      }
+    });
+    return upcoming;
+  };
+
+  const handleDayPress = (index) => {
+    setSelectedDayIndex(index);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   if (loading) {
@@ -123,9 +321,50 @@ export function ScheduleScreen() {
     );
   }
 
+  const selectedDay = schedules[selectedDayIndex];
+  const upcomingCollections = getUpcomingCollections();
+
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <CustomText style={styles.heading}>Waste Collections</CustomText>
+          <View style={styles.notificationToggle}>
+            <Icon
+              name={
+                notificationsEnabled
+                  ? "notifications-active"
+                  : "notifications-off"
+              }
+              size={24}
+              color={notificationsEnabled ? COLORS.primary : COLORS.textGray}
+            />
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: COLORS.secondary, true: COLORS.primary }}
+              thumbColor={COLORS.white}
+              style={{ marginLeft: 8 }}
+            />
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.calendarStrip}>
+        {schedules.map((daySchedule, index) => (
+          <CalendarDay
+            key={daySchedule.date}
+            date={daySchedule.date}
+            dayName={daySchedule.dayLabel}
+            isSelected={index === selectedDayIndex}
+            collections={daySchedule.collections}
+            onPress={() => handleDayPress(index)}
+          />
+        ))}
+      </View>
+
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -137,58 +376,60 @@ export function ScheduleScreen() {
           />
         }
       >
-        <View style={styles.header}>
-          <CustomText style={styles.heading}>Collection Schedule</CustomText>
-          <CustomText style={styles.subHeading}>Next 7 Days</CustomText>
+        {/* Selected Day's Collections */}
+        <View style={styles.selectedDayHeader}>
+          <CustomText style={styles.selectedDayText}>
+            {selectedDay.dayLabel}
+          </CustomText>
+          <CustomText style={styles.selectedDateText}>
+            {selectedDay.date}
+          </CustomText>
         </View>
 
-        {schedules.map((daySchedule) => (
-          <View key={daySchedule.date} style={styles.scheduleCard}>
-            <View style={styles.dateHeader}>
-              <CustomText style={styles.dayLabel}>
-                {daySchedule.dayLabel}
+        <View style={styles.collectionsContainer}>
+          {selectedDay.collections.length > 0 ? (
+            selectedDay.collections.map((collection, index) => (
+              <CollectionCard
+                key={`${collection.wasteType}_${index}`}
+                collection={collection}
+                style={{ marginBottom: 12 }}
+              />
+            ))
+          ) : (
+            <View style={styles.noCollectionContainer}>
+              <Icon name="event-busy" size={32} color={COLORS.textGray} />
+              <CustomText style={styles.noCollectionText}>
+                No collections scheduled
               </CustomText>
-              <CustomText style={styles.dateText}>
-                {daySchedule.date}
+              <CustomText style={styles.noCollectionSubText}>
+                There are no waste collections scheduled for this day
+              </CustomText>
+            </View>
+          )}
+        </View>
+
+        {/* Upcoming Collections Section */}
+        {upcomingCollections.length > 0 && (
+          <View style={styles.upcomingSection}>
+            <View style={styles.upcomingHeader}>
+              <Icon name="event-note" size={24} color={COLORS.primary} />
+              <CustomText style={styles.upcomingSectionTitle}>
+                Upcoming
               </CustomText>
             </View>
 
-            <View style={styles.collectionsContainer}>
-              {daySchedule.collections.length > 0 ? (
-                daySchedule.collections.map((collection, index) => (
-                  <View
-                    key={`${collection.wasteType}_${index}`}
-                    style={[
-                      styles.collectionItem,
-                      {
-                        backgroundColor: WasteTypeColors[collection.wasteType],
-                      },
-                    ]}
-                  >
-                    <Icon
-                      name={WasteTypeIcons[collection.wasteType]}
-                      size={20}
-                      color={COLORS.white}
-                    />
-                    <CustomText style={styles.collectionText}>
-                      {collection.wasteType}
-                    </CustomText>
-                    <CustomText style={styles.frequencyText}>
-                      {collection.frequency}
-                    </CustomText>
-                  </View>
-                ))
-              ) : (
-                <View style={styles.noCollectionContainer}>
-                  <Icon name="event-busy" size={24} color={COLORS.textGray} />
-                  <CustomText style={styles.noCollectionText}>
-                    No collections scheduled
-                  </CustomText>
-                </View>
-              )}
+            <View style={styles.upcomingList}>
+              {upcomingCollections.map((collection, index) => (
+                <UpcomingCollectionCard
+                  key={`upcoming_${collection.wasteType}_${index}`}
+                  collection={collection}
+                  date={collection.date}
+                  dayName={collection.dayName}
+                />
+              ))}
             </View>
           </View>
-        ))}
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -211,65 +452,134 @@ const styles = StyleSheet.create({
     color: COLORS.errorbanner,
     textAlign: "center",
   },
-  scrollView: {
-    flex: 1,
-  },
   header: {
     padding: 20,
     paddingBottom: 10,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: COLORS.primary,
-    marginBottom: 5,
-  },
-  subHeading: {
-    fontSize: 16,
-    color: COLORS.textGray,
-  },
-  scheduleCard: {
-    marginHorizontal: 20,
-    marginBottom: 15,
-    backgroundColor: COLORS.secondary,
-    borderRadius: 12,
-    padding: 15,
+    backgroundColor: COLORS.white,
     elevation: 2,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  dateHeader: {
+  heading: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+  calendarStrip: {
+    height: CALENDAR_STRIP_HEIGHT,
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.secondary,
   },
-  dayLabel: {
+  calendarDay: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+    marginHorizontal: 2,
+    borderRadius: 12,
+  },
+  selectedCalendarDay: {
+    backgroundColor: COLORS.primary,
+  },
+  calendarDayName: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    marginBottom: 4,
+  },
+  calendarDayNumber: {
     fontSize: 18,
     fontWeight: "600",
     color: COLORS.black,
+    marginBottom: 4,
   },
-  dateText: {
+  selectedCalendarDayText: {
+    color: COLORS.white,
+  },
+  calendarDotContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    height: 6,
+    gap: 4,
+  },
+  calendarDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  calendarDotPlaceholder: {
+    width: 6,
+    height: 6,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: COLORS.secondary,
+  },
+  selectedDayHeader: {
+    padding: 20,
+    backgroundColor: COLORS.white,
+    marginBottom: 10,
+  },
+  selectedDayText: {
+    fontSize: 24,
+    fontWeight: "600",
+    color: COLORS.black,
+    marginBottom: 4,
+  },
+  selectedDateText: {
     fontSize: 16,
     color: COLORS.textGray,
   },
   collectionsContainer: {
-    gap: 10,
+    padding: 15,
   },
   collectionItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+  },
+  collectionIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  collectionContent: {
+    flex: 1,
   },
   collectionText: {
     color: COLORS.white,
-    fontSize: 16,
-    fontWeight: "500",
-    marginLeft: 10,
-    flex: 1,
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  collectionDetails: {
+    gap: 6,
+  },
+  timeSlotContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  timeSlotText: {
+    color: COLORS.white,
+    fontSize: 14,
+    opacity: 0.9,
+  },
+  frequencyContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   frequencyText: {
     color: COLORS.white,
@@ -277,14 +587,114 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   noCollectionContainer: {
-    flexDirection: "row",
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: 30,
     alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
+    gap: 10,
   },
   noCollectionText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.textGray,
+  },
+  noCollectionSubText: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    textAlign: "center",
+    opacity: 0.8,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  notificationToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    padding: 8,
+    borderRadius: 20,
+    elevation: 1,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  upcomingSection: {
+    padding: 20,
+    backgroundColor: COLORS.white,
+    marginTop: 20,
+    borderRadius: 12,
+    margin: 15,
+  },
+  upcomingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  upcomingSectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: COLORS.primary,
     marginLeft: 10,
-    fontSize: 16,
+  },
+  upcomingList: {
+    gap: 12,
+  },
+  upcomingCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  upcomingColorStrip: {
+    width: 4,
+  },
+  upcomingContent: {
+    flex: 1,
+    padding: 12,
+  },
+  upcomingHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  upcomingDateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  upcomingDate: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    fontWeight: "500",
+  },
+  upcomingTypeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  upcomingType: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  upcomingDetails: {
+    gap: 6,
+  },
+  upcomingDetailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  upcomingDetailText: {
+    fontSize: 13,
     color: COLORS.textGray,
   },
 });

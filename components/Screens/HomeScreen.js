@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   TextInput,
@@ -18,6 +18,13 @@ import Svg, { Circle, Path } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NewsFeed } from "../api/NewsFeed";
 import { useFocusEffect } from "@react-navigation/native";
+import { fetchUserSchedules } from "../services/firebaseFirestore";
+
+const WasteTypeColors = {
+  Degradable: COLORS.DEGRADABLE_WASTE,
+  Recyclable: COLORS.RECYCLABLE_WASTE,
+  "Non Recyclable": COLORS.NON_RECYCLABLE_WASTE,
+};
 
 const ProfileIcon = () => (
   <Svg width="40" height="40" viewBox="0 0 40 40">
@@ -46,6 +53,13 @@ export default function HomeScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [newsKey, setNewsKey] = useState(0);
   const [locationText, setLocationText] = useState("Select Location");
+  const [todayCollections, setTodayCollections] = useState([]);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  const scrollViewRef = useRef(null);
+  const headerRef = useRef(null);
 
   const fetchUserData = async () => {
     try {
@@ -56,7 +70,6 @@ export default function HomeScreen({ navigation }) {
           const userData = userDoc.data();
           setUserName(userData.name);
 
-          // Update location text based on Firestore data
           if (userData.wardName && userData.districtName) {
             const locationString = `${userData.wardName}, ${userData.districtName}`;
             setLocationText(locationString);
@@ -67,13 +80,39 @@ export default function HomeScreen({ navigation }) {
           }
         }
       } else {
-        // Reset states if no user is logged in
         setUserName("");
         setLocationText("Select Location");
         await AsyncStorage.removeItem("userLocation");
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
+    }
+  };
+
+  const fetchTodaySchedule = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const scheduleData = await fetchUserSchedules(user.uid);
+        const today = new Date();
+        const days = [
+          "Sunday",
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ];
+        const todayName = days[today.getDay()];
+
+        const todaySchedules = scheduleData.filter(
+          (schedule) => schedule.day === todayName || schedule.day === "All"
+        );
+        setTodayCollections(todaySchedules);
+      }
+    } catch (error) {
+      console.error("Error fetching schedule:", error);
     }
   };
 
@@ -97,10 +136,27 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchUserData(), fetchSubGreeting()]);
+    await Promise.all([
+      fetchUserData(),
+      fetchSubGreeting(),
+      fetchTodaySchedule(),
+    ]);
     setGreeting(updateGreeting());
     setNewsKey((prev) => prev + 1);
     setRefreshing(false);
+  };
+
+  const handleSearchFocus = () => {
+    setScrollEnabled(false);
+    setIsSearchFocused(true);
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: headerHeight, animated: true });
+    }
+  };
+
+  const handleSearchBlur = () => {
+    setScrollEnabled(true);
+    setIsSearchFocused(false);
   };
 
   // Update data when screen comes into focus
@@ -109,6 +165,7 @@ export default function HomeScreen({ navigation }) {
       fetchUserData();
       setGreeting(updateGreeting());
       fetchSubGreeting();
+      fetchTodaySchedule();
     }, [])
   );
 
@@ -117,20 +174,40 @@ export default function HomeScreen({ navigation }) {
     fetchUserData();
     setGreeting(updateGreeting());
     fetchSubGreeting();
+    fetchTodaySchedule();
   }, []);
+
+  const SearchBar = () => (
+    <View
+      style={[
+        styles.searchContainer,
+        isSearchFocused && styles.searchContainerFocused,
+      ]}
+    >
+      <Icon name="search" size={20} color={COLORS.placeholderTextColor} />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search For Updates"
+        placeholderTextColor={COLORS.placeholderTextColor}
+        onFocus={handleSearchFocus}
+        onBlur={handleSearchBlur}
+      />
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
-          />
-        }
+      {/* Header content */}
+      <View
+        ref={headerRef}
+        onLayout={(event) => {
+          const { height } = event.nativeEvent.layout;
+          setHeaderHeight(height);
+        }}
+        style={[
+          styles.headerContent,
+          isSearchFocused && styles.headerContentHidden,
+        ]}
       >
         <View style={styles.header}>
           <View style={styles.locationContainer}>
@@ -148,19 +225,81 @@ export default function HomeScreen({ navigation }) {
           </CustomText>
           <CustomText style={styles.subGreetingText}>{subGreeting}</CustomText>
         </View>
+      </View>
 
-        <View style={styles.searchContainer}>
-          <Icon name="search" size={20} color={COLORS.placeholderTextColor} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search For Updates"
-            placeholderTextColor={COLORS.placeholderTextColor}
+      {/* Search bar */}
+      <SearchBar />
+
+      {/* Scrollable content */}
+      <ScrollView
+        ref={scrollViewRef}
+        scrollEnabled={scrollEnabled}
+        contentContainerStyle={styles.scrollContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
           />
-        </View>
-
+        }
+      >
+        {/* News Feed Section */}
         <View style={styles.contentContainer}>
           <NewsFeed key={newsKey} />
         </View>
+
+        {/* Today's Collection Section */}
+        {todayCollections.length > 0 && (
+          <View style={styles.scheduleContainer}>
+            <View style={styles.scheduleHeader}>
+              <Icon name="clock" size={20} color={COLORS.primary} />
+              <CustomText style={styles.scheduleHeaderText}>
+                Today's Collection
+              </CustomText>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scheduleScrollContent}
+            >
+              {todayCollections.map((collection, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.scheduleCard,
+                    { backgroundColor: WasteTypeColors[collection.wasteType] },
+                  ]}
+                >
+                  <Icon
+                    name={
+                      collection.wasteType === "Degradable"
+                        ? "trash"
+                        : collection.wasteType === "Recyclable"
+                        ? "refresh-cw"
+                        : "trash-2"
+                    }
+                    size={20}
+                    color={COLORS.white}
+                  />
+                  <CustomText style={styles.wasteTypeText}>
+                    {collection.wasteType}
+                  </CustomText>
+                  {collection.timeSlot && (
+                    <CustomText style={styles.timeText}>
+                      {`${collection.timeSlot.start} - ${collection.timeSlot.end}`}
+                    </CustomText>
+                  )}
+                  {collection.frequency && (
+                    <CustomText style={styles.frequencyText}>
+                      {collection.frequency}
+                    </CustomText>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -170,6 +309,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
+  },
+  headerContent: {
+    backgroundColor: COLORS.white,
+    zIndex: 1,
+  },
+  headerContentHidden: {
+    height: 0,
+    overflow: "hidden",
   },
   scrollContainer: {
     flexGrow: 1,
@@ -208,16 +355,79 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
-    marginTop: 20,
+    marginVertical: 10,
     paddingHorizontal: 15,
     height: 50,
     backgroundColor: COLORS.secondary,
     borderRadius: 10,
+    zIndex: 2,
+  },
+  searchContainerFocused: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    marginTop: 10,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   searchInput: {
     flex: 1,
     marginLeft: 10,
     color: COLORS.black,
+  },
+  scheduleContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  scheduleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  scheduleHeaderText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.primary,
+    marginLeft: 8,
+  },
+  scheduleScrollContent: {
+    paddingRight: 20,
+  },
+  scheduleCard: {
+    padding: 15,
+    borderRadius: 12,
+    marginRight: 12,
+    minWidth: 330,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  wasteTypeText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: "500",
+    marginTop: 8,
+  },
+  timeText: {
+    color: COLORS.white,
+    fontSize: 12,
+    opacity: 0.9,
+    marginTop: 4,
+  },
+  frequencyText: {
+    color: COLORS.white,
+    fontSize: 11,
+    opacity: 0.8,
+    marginTop: 2,
   },
   contentContainer: {
     flex: 1,

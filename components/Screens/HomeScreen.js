@@ -7,18 +7,25 @@ import {
   SafeAreaView,
   ScrollView,
   RefreshControl,
+  Animated,
+  Platform,
 } from "react-native";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
 import greetings from "../utils/greetings";
-import Icon from "react-native-vector-icons/Feather";
+import Icon from "react-native-vector-icons/MaterialIcons";
 import { auth, firestore } from "../utils/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
-import Svg, { Circle, Path } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NewsFeed } from "../api/NewsFeed";
 import { useFocusEffect } from "@react-navigation/native";
 import { fetchUserSchedules } from "../services/firebaseFirestore";
+
+const WasteTypeIcons = {
+  Degradable: "delete-outline",
+  Recyclable: "replay",
+  "Non Recyclable": "delete-forever",
+};
 
 const WasteTypeColors = {
   Degradable: COLORS.DEGRADABLE_WASTE,
@@ -26,24 +33,16 @@ const WasteTypeColors = {
   "Non Recyclable": COLORS.NON_RECYCLABLE_WASTE,
 };
 
-const ProfileIcon = () => (
-  <Svg width="40" height="40" viewBox="0 0 40 40">
-    <Circle
-      cx="20"
-      cy="20"
-      r="19"
-      fill={COLORS.white}
-      stroke={COLORS.primary}
-      strokeWidth="2"
-    />
-    <Circle cx="20" cy="16" r="6" fill={COLORS.primary} />
-    <Path
-      d="M8 35.5C8 35.5 11 27 20 27C29 27 32 35.5 32 35.5"
-      stroke={COLORS.primary}
-      strokeWidth="2"
-      fill={COLORS.white}
-    />
-  </Svg>
+const ProfileButton = ({ onPress, style }) => (
+  <TouchableOpacity
+    style={[styles.profileButton, style]}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <View style={styles.profileIconContainer}>
+      <Icon name="person" size={24} color={COLORS.primary} />
+    </View>
+  </TouchableOpacity>
 );
 
 export default function HomeScreen({ navigation }) {
@@ -54,12 +53,10 @@ export default function HomeScreen({ navigation }) {
   const [newsKey, setNewsKey] = useState(0);
   const [locationText, setLocationText] = useState("Select Location");
   const [todayCollections, setTodayCollections] = useState([]);
-  const [scrollEnabled, setScrollEnabled] = useState(true);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(0);
 
   const scrollViewRef = useRef(null);
-  const headerRef = useRef(null);
+  const searchAnimation = useRef(new Animated.Value(0)).current;
 
   const fetchUserData = async () => {
     try {
@@ -79,10 +76,6 @@ export default function HomeScreen({ navigation }) {
             await AsyncStorage.removeItem("userLocation");
           }
         }
-      } else {
-        setUserName("");
-        setLocationText("Select Location");
-        await AsyncStorage.removeItem("userLocation");
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -147,19 +140,23 @@ export default function HomeScreen({ navigation }) {
   };
 
   const handleSearchFocus = () => {
-    setScrollEnabled(false);
     setIsSearchFocused(true);
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ y: headerHeight, animated: true });
-    }
+    Animated.spring(searchAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
   };
 
   const handleSearchBlur = () => {
-    setScrollEnabled(true);
     setIsSearchFocused(false);
+    Animated.spring(searchAnimation, {
+      toValue: 0,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
   };
 
-  // Update data when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       fetchUserData();
@@ -169,7 +166,6 @@ export default function HomeScreen({ navigation }) {
     }, [])
   );
 
-  // Initial data load
   useEffect(() => {
     fetchUserData();
     setGreeting(updateGreeting());
@@ -177,64 +173,122 @@ export default function HomeScreen({ navigation }) {
     fetchTodaySchedule();
   }, []);
 
-  const SearchBar = () => (
-    <View
+  const renderHeader = () => (
+    <Animated.View
       style={[
-        styles.searchContainer,
-        isSearchFocused && styles.searchContainerFocused,
+        styles.headerContainer,
+        {
+          transform: [
+            {
+              translateY: searchAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -200],
+              }),
+            },
+          ],
+        },
       ]}
     >
-      <Icon name="search" size={20} color={COLORS.placeholderTextColor} />
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.locationButton}
+          onPress={() => navigation.navigate("Profile")}
+        >
+          <Icon name="location-on" size={20} color={COLORS.primary} />
+          <CustomText style={styles.locationText}>{locationText}</CustomText>
+          <Icon name="arrow-drop-down" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
+        <ProfileButton onPress={() => navigation.navigate("Profile")} />
+      </View>
+
+      <View style={styles.greetingContainer}>
+        <CustomText style={styles.greetingText}>
+          {greeting}, {userName}!
+        </CustomText>
+        <CustomText style={styles.subGreetingText}>{subGreeting}</CustomText>
+      </View>
+    </Animated.View>
+  );
+
+  const renderSearchBar = () => (
+    <Animated.View
+      style={[
+        styles.searchContainer,
+        {
+          transform: [
+            {
+              translateY: searchAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 10],
+              }),
+            },
+          ],
+          zIndex: searchAnimation.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 2],
+          }),
+        },
+      ]}
+    >
+      <Icon name="search" size={24} color={COLORS.textGray} />
       <TextInput
         style={styles.searchInput}
-        placeholder="Search For Updates"
-        placeholderTextColor={COLORS.placeholderTextColor}
+        placeholder="Search for updates"
+        placeholderTextColor={COLORS.textGray}
         onFocus={handleSearchFocus}
         onBlur={handleSearchBlur}
       />
+    </Animated.View>
+  );
+
+  const renderScheduleCard = (collection, index) => (
+    <View
+      key={index}
+      style={[
+        styles.scheduleCard,
+        { backgroundColor: WasteTypeColors[collection.wasteType] },
+      ]}
+    >
+      <View style={styles.scheduleCardHeader}>
+        <Icon
+          name={WasteTypeIcons[collection.wasteType]}
+          size={24}
+          color={COLORS.white}
+        />
+        <CustomText style={styles.wasteTypeText}>
+          {collection.wasteType}
+        </CustomText>
+      </View>
+
+      {collection.timeSlot && (
+        <View style={styles.scheduleTimeContainer}>
+          <Icon name="access-time" size={16} color={COLORS.white} />
+          <CustomText style={styles.timeText}>
+            {`${collection.timeSlot.start} - ${collection.timeSlot.end}`}
+          </CustomText>
+        </View>
+      )}
+
+      {collection.frequency && (
+        <View style={styles.frequencyContainer}>
+          <Icon name="replay" size={14} color={COLORS.white} />
+          <CustomText style={styles.frequencyText}>
+            {collection.frequency}
+          </CustomText>
+        </View>
+      )}
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header content */}
-      <View
-        ref={headerRef}
-        onLayout={(event) => {
-          const { height } = event.nativeEvent.layout;
-          setHeaderHeight(height);
-        }}
-        style={[
-          styles.headerContent,
-          isSearchFocused && styles.headerContentHidden,
-        ]}
-      >
-        <View style={styles.header}>
-          <View style={styles.locationContainer}>
-            <Icon name="map-pin" size={20} color={COLORS.gpslogo} />
-            <CustomText style={styles.locationText}>{locationText}</CustomText>
-          </View>
-          <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-            <ProfileIcon />
-          </TouchableOpacity>
-        </View>
+      {renderHeader()}
+      {renderSearchBar()}
 
-        <View style={styles.greetingContainer}>
-          <CustomText style={styles.greetingText}>
-            {greeting}, {userName}!
-          </CustomText>
-          <CustomText style={styles.subGreetingText}>{subGreeting}</CustomText>
-        </View>
-      </View>
-
-      {/* Search bar */}
-      <SearchBar />
-
-      {/* Scrollable content */}
       <ScrollView
         ref={scrollViewRef}
-        scrollEnabled={scrollEnabled}
-        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -244,17 +298,11 @@ export default function HomeScreen({ navigation }) {
           />
         }
       >
-        {/* News Feed Section */}
-        <View style={styles.contentContainer}>
-          <NewsFeed key={newsKey} />
-        </View>
-
-        {/* Today's Collection Section */}
         {todayCollections.length > 0 && (
-          <View style={styles.scheduleContainer}>
-            <View style={styles.scheduleHeader}>
-              <Icon name="clock" size={20} color={COLORS.primary} />
-              <CustomText style={styles.scheduleHeaderText}>
+          <View style={styles.scheduleSection}>
+            <View style={styles.sectionHeader}>
+              <Icon name="event" size={24} color={COLORS.primary} />
+              <CustomText style={styles.sectionTitle}>
                 Today's Collection
               </CustomText>
             </View>
@@ -263,43 +311,20 @@ export default function HomeScreen({ navigation }) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.scheduleScrollContent}
             >
-              {todayCollections.map((collection, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.scheduleCard,
-                    { backgroundColor: WasteTypeColors[collection.wasteType] },
-                  ]}
-                >
-                  <Icon
-                    name={
-                      collection.wasteType === "Degradable"
-                        ? "trash"
-                        : collection.wasteType === "Recyclable"
-                        ? "refresh-cw"
-                        : "trash-2"
-                    }
-                    size={20}
-                    color={COLORS.white}
-                  />
-                  <CustomText style={styles.wasteTypeText}>
-                    {collection.wasteType}
-                  </CustomText>
-                  {collection.timeSlot && (
-                    <CustomText style={styles.timeText}>
-                      {`${collection.timeSlot.start} - ${collection.timeSlot.end}`}
-                    </CustomText>
-                  )}
-                  {collection.frequency && (
-                    <CustomText style={styles.frequencyText}>
-                      {collection.frequency}
-                    </CustomText>
-                  )}
-                </View>
-              ))}
+              {todayCollections.map((collection, index) =>
+                renderScheduleCard(collection, index)
+              )}
             </ScrollView>
           </View>
         )}
+
+        <View style={styles.newsFeedSection}>
+          <View style={styles.sectionHeader}>
+            <Icon name="article" size={24} color={COLORS.primary} />
+            <CustomText style={styles.sectionTitle}>CMC News</CustomText>
+          </View>
+          <NewsFeed key={newsKey} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -310,127 +335,243 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.white,
   },
-  headerContent: {
+  headerContainer: {
     backgroundColor: COLORS.white,
-    zIndex: 1,
+    paddingTop: Platform.OS === "ios" ? 0 : 20,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderGray,
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    zIndex: 10,
   },
-  headerContentHidden: {
-    height: 0,
-    overflow: "hidden",
-  },
-  scrollContainer: {
-    flexGrow: 1,
-  },
-  header: {
+  topHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    height: 50,
   },
-  locationContainer: {
+  locationButton: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
   },
   locationText: {
-    marginLeft: 5,
     fontSize: 14,
     color: COLORS.textGray,
+    marginHorizontal: 8,
+    fontWeight: "500",
+  },
+  profileButton: {
+    padding: 8,
+  },
+  profileIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
   },
   greetingContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+    marginTop: 20,
   },
   greetingText: {
     fontSize: 16,
-    color: COLORS.black,
+    color: COLORS.textGray,
+    marginBottom: 4,
   },
   subGreetingText: {
     fontSize: 24,
     color: COLORS.primary,
     fontWeight: "600",
-    marginTop: 5,
+    letterSpacing: 0.5,
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: COLORS.white,
     marginHorizontal: 20,
-    marginVertical: 10,
+    marginVertical: 15,
     paddingHorizontal: 15,
+    borderRadius: 12,
     height: 50,
-    backgroundColor: COLORS.secondary,
-    borderRadius: 10,
-    zIndex: 2,
-  },
-  searchContainerFocused: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    marginTop: 10,
-    elevation: 4,
-    shadowColor: "#000",
+    borderWidth: 1,
+    borderColor: COLORS.borderGray,
+    shadowColor: COLORS.black,
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
     marginLeft: 10,
+    fontSize: 16,
     color: COLORS.black,
+    paddingVertical: 8,
   },
-  scheduleContainer: {
-    paddingHorizontal: 20,
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
+  scheduleSection: {
     marginTop: 20,
+    paddingHorizontal: 20,
   },
-  scheduleHeader: {
+  sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 15,
+    paddingVertical: 5,
   },
-  scheduleHeaderText: {
-    fontSize: 16,
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: "600",
     color: COLORS.primary,
-    marginLeft: 8,
+    marginLeft: 10,
   },
   scheduleScrollContent: {
     paddingRight: 20,
+    paddingVertical: 5,
   },
   scheduleCard: {
-    padding: 15,
-    borderRadius: 12,
-    marginRight: 12,
-    minWidth: 330,
+    padding: 20,
+    borderRadius: 15,
+    marginRight: 15,
+    width: 300,
     shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  scheduleCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
   },
   wasteTypeText: {
     color: COLORS.white,
-    fontSize: 14,
-    fontWeight: "500",
-    marginTop: 8,
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 10,
+    letterSpacing: 0.5,
+  },
+  scheduleTimeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    padding: 8,
+    borderRadius: 8,
   },
   timeText: {
     color: COLORS.white,
-    fontSize: 12,
+    fontSize: 14,
+    marginLeft: 8,
+    fontWeight: "500",
+  },
+  frequencyContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     opacity: 0.9,
-    marginTop: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    padding: 6,
+    borderRadius: 6,
+    alignSelf: "flex-start",
   },
   frequencyText: {
     color: COLORS.white,
-    fontSize: 11,
-    opacity: 0.8,
-    marginTop: 2,
+    fontSize: 12,
+    marginLeft: 6,
+    fontWeight: "500",
   },
-  contentContainer: {
+  newsFeedSection: {
+    marginTop: 25,
+    paddingHorizontal: 20,
+  },
+  newsCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 15,
+    marginBottom: 15,
+    padding: 15,
+    shadowColor: COLORS.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  newsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  newsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.black,
     flex: 1,
-    marginTop: 20,
+  },
+  newsDate: {
+    fontSize: 12,
+    color: COLORS.textGray,
+  },
+  newsContent: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    lineHeight: 20,
+  },
+  refreshControl: {
+    backgroundColor: "transparent",
+  },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 30,
+  },
+  noDataText: {
+    fontSize: 16,
+    color: COLORS.textGray,
+    textAlign: "center",
+    marginTop: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

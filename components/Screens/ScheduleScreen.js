@@ -328,7 +328,7 @@ export function ScheduleScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <CustomText style={styles.heading}>Waste Collections</CustomText>
+          <CustomText style={styles.heading}>Collection Schedule</CustomText>
           <View style={styles.notificationToggle}>
             <Icon
               name={

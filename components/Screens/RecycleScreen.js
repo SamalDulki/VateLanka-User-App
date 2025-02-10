@@ -209,10 +209,12 @@ export function RecycleScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <CustomText style={styles.heading}>Waste Guide</CustomText>
-        <CustomText style={styles.subtitle}>
-          Learn proper waste management
-        </CustomText>
+        <View style={styles.headerTop}>
+          <CustomText style={styles.heading}>Waste Guide</CustomText>
+          <CustomText style={styles.subtitle}>
+            Learn proper waste management
+          </CustomText>
+        </View>
       </View>
 
       <FlatList
@@ -247,13 +249,20 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingBottom: 15,
+    paddingBottom: 10,
+    backgroundColor: COLORS.white,
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    marginBottom: 10,
   },
   heading: {
     fontSize: 28,
     fontWeight: "600",
     color: COLORS.primary,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   subtitle: {
     fontSize: 16,

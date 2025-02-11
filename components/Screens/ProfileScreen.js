@@ -10,7 +10,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { auth } from "../utils/firebaseConfig";
+import { getFirebaseAuth } from "../utils/firebaseConfig";
 import CustomText from "../utils/CustomText";
 import { COLORS } from "../utils/Constants";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -56,6 +56,9 @@ export default function ProfileScreen({ navigation }) {
   const fetchUserData = async () => {
     setLoading(true);
     try {
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("Auth not initialized");
+
       const user = auth.currentUser;
       if (user) {
         const userData = await fetchUserProfile(user.uid);
@@ -141,6 +144,9 @@ export default function ProfileScreen({ navigation }) {
 
     try {
       setLoading(true);
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("Auth not initialized");
+
       const user = auth.currentUser;
       if (user) {
         await updateUserProfile(user.uid, {
@@ -186,6 +192,9 @@ export default function ProfileScreen({ navigation }) {
   const handleUpdateUserLocation = async () => {
     setLoading(true);
     try {
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("Auth not initialized");
+
       const user = auth.currentUser;
       if (user) {
         const selectedDistrictData = districts.find(
@@ -211,12 +220,16 @@ export default function ProfileScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Error updating user location:", error);
+      Alert.alert("Error", "Failed to update location");
     }
     setLoading(false);
   };
 
   const handleSignOut = async () => {
     try {
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("Auth not initialized");
+
       await AsyncStorage.removeItem("userLocation");
       await auth.signOut();
       navigation.reset({
@@ -225,6 +238,7 @@ export default function ProfileScreen({ navigation }) {
       });
     } catch (error) {
       console.error("Error signing out: ", error);
+      Alert.alert("Error", "Failed to sign out");
     }
   };
 

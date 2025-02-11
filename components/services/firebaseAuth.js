@@ -1,4 +1,4 @@
-import { auth } from "../utils/firebaseConfig";
+import { getFirebaseAuth } from "../utils/firebaseConfig";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -9,6 +9,9 @@ import {
 // Sign up a user
 export const signUpWithEmail = async (email, password) => {
   try {
+    const auth = await getFirebaseAuth();
+    if (!auth) throw new Error("Firebase auth not initialized");
+
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       email,
@@ -17,7 +20,6 @@ export const signUpWithEmail = async (email, password) => {
     const user = userCredential.user;
 
     await sendEmailVerification(user);
-
     await auth.signOut();
 
     return user;
@@ -32,6 +34,9 @@ export const signUpWithEmail = async (email, password) => {
 // Log in a user
 export const loginWithEmail = async (email, password) => {
   try {
+    const auth = await getFirebaseAuth();
+    if (!auth) throw new Error("Firebase auth not initialized");
+
     const userCredential = await signInWithEmailAndPassword(
       auth,
       email,
@@ -41,7 +46,7 @@ export const loginWithEmail = async (email, password) => {
 
     if (!user.emailVerified) {
       await auth.signOut();
-      throw new Error("Invalid email or password.");
+      throw new Error("Please verify your email before logging in.");
     }
 
     return user;
@@ -53,6 +58,9 @@ export const loginWithEmail = async (email, password) => {
 // Send password reset email
 export const sendPasswordReset = async (email) => {
   try {
+    const auth = await getFirebaseAuth();
+    if (!auth) throw new Error("Firebase auth not initialized");
+
     await sendPasswordResetEmail(auth, email);
   } catch (error) {
     throw new Error(

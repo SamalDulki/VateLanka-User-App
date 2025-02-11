@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
-import { auth } from "../utils/firebaseConfig";
+import { getFirebaseAuth } from "../utils/firebaseConfig";
 import { fetchUserSchedules } from "../services/firebaseFirestore";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -226,6 +226,9 @@ export function ScheduleScreen() {
     try {
       setLoading(true);
       setError(null);
+
+      const auth = await getFirebaseAuth();
+      if (!auth) throw new Error("Auth not initialized");
 
       const user = auth.currentUser;
       if (!user) {

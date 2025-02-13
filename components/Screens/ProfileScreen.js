@@ -8,13 +8,13 @@ import {
   ActivityIndicator,
   SafeAreaView,
   TextInput,
-  Alert,
 } from "react-native";
 import { getFirebaseAuth } from "../utils/firebaseConfig";
 import CustomText from "../utils/CustomText";
 import { COLORS } from "../utils/Constants";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NotificationBanner from "../utils/NotificationBanner";
 import {
   fetchUserProfile,
   fetchDistrictsForMunicipalCouncil,
@@ -42,6 +42,11 @@ export default function ProfileScreen({ navigation }) {
   const [nic, setNic] = useState("");
   const [birthday, setBirthday] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [notification, setNotification] = useState({
+    visible: false,
+    message: "",
+    type: "success",
+  });
 
   useEffect(() => {
     fetchUserData();
@@ -52,6 +57,14 @@ export default function ProfileScreen({ navigation }) {
       fetchWards();
     }
   }, [selectedDistrict]);
+
+  const showNotification = (message, type = "error") => {
+    setNotification({
+      visible: true,
+      message,
+      type,
+    });
+  };
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -84,6 +97,7 @@ export default function ProfileScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
+      showNotification("Failed to load user data");
     }
     setLoading(false);
   };
@@ -123,22 +137,22 @@ export default function ProfileScreen({ navigation }) {
 
   const handleUpdateProfile = async () => {
     if (!editedName.trim()) {
-      Alert.alert("Error", "Name cannot be empty");
+      showNotification("Name cannot be empty");
       return;
     }
 
     if (nic && !validateNIC(nic)) {
-      Alert.alert("Error", "Invalid NIC format");
+      showNotification("Invalid NIC format");
       return;
     }
 
     if (birthday && !validateBirthday(birthday)) {
-      Alert.alert("Error", "Invalid birthday format (YYYY-MM-DD)");
+      showNotification("Invalid birthday format (YYYY-MM-DD)");
       return;
     }
 
     if (phoneNumber && !validatePhoneNumber(phoneNumber)) {
-      Alert.alert("Error", "Invalid phone number");
+      showNotification("Invalid phone number");
       return;
     }
 
@@ -157,10 +171,10 @@ export default function ProfileScreen({ navigation }) {
         });
         setUserName(editedName.trim());
         setIsEditing(false);
-        Alert.alert("Success", "Profile updated successfully!");
+        showNotification("Profile updated successfully!", "success");
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to update profile");
+      showNotification("Failed to update profile");
     } finally {
       setLoading(false);
     }
@@ -174,6 +188,7 @@ export default function ProfileScreen({ navigation }) {
       setDistricts(districtList);
     } catch (error) {
       console.error("Error fetching districts:", error);
+      showNotification("Failed to load districts");
     }
   };
 
@@ -186,6 +201,7 @@ export default function ProfileScreen({ navigation }) {
       setWards(wardList);
     } catch (error) {
       console.error("Error fetching wards:", error);
+      showNotification("Failed to load wards");
     }
   };
 
@@ -217,10 +233,11 @@ export default function ProfileScreen({ navigation }) {
         setSelectedDistrictName(selectedDistrictData.name);
         setSelectedWardName(selectedWardData.name);
         setLocationLocked(true);
+        showNotification("Location updated successfully!", "success");
       }
     } catch (error) {
       console.error("Error updating user location:", error);
-      Alert.alert("Error", "Failed to update location");
+      showNotification("Failed to update location");
     }
     setLoading(false);
   };
@@ -238,7 +255,7 @@ export default function ProfileScreen({ navigation }) {
       });
     } catch (error) {
       console.error("Error signing out: ", error);
-      Alert.alert("Error", "Failed to sign out");
+      showNotification("Failed to sign out");
     }
   };
 
@@ -293,6 +310,10 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <NotificationBanner
+        {...notification}
+        onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
+      />
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} />

@@ -5,65 +5,27 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Animated,
   Modal,
   ScrollView,
 } from "react-native";
 import { signUpWithEmail } from "../services/firebaseAuth";
-import CustomText from "../utils/CustomText";
-import { COLORS } from "../utils/Constants";
 import {
   saveUserData,
   fetchMunicipalCouncils,
 } from "../services/firebaseFirestore";
+import NotificationBanner from "../utils/NotificationBanner";
+import CustomText from "../utils/CustomText";
+import { COLORS } from "../utils/Constants";
 import Icon from "react-native-vector-icons/MaterialIcons";
 
-const NotificationBanner = ({ message, type, visible, onHide }) => {
-  const translateY = useState(new Animated.Value(-100))[0];
-
-  useEffect(() => {
-    if (visible) {
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.delay(3000),
-        Animated.timing(translateY, {
-          toValue: -100,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => onHide());
-    }
-  }, [visible]);
-
-  const backgroundColor =
-    type === "success" ? COLORS.successbanner : COLORS.errorbanner;
-
-  if (!visible) return null;
-
-  return (
-    <Animated.View
-      style={[
-        styles.notificationBanner,
-        { transform: [{ translateY }], backgroundColor },
-      ]}
-    >
-      <CustomText style={styles.notificationText}>{message}</CustomText>
-    </Animated.View>
-  );
-};
-
-export default function SignupScreen({ navigation }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [municipalCouncil, setMunicipalCouncil] = useState("");
-  const [municipalCouncilName, setMunicipalCouncilName] = useState(
-    "Select Municipal Council"
-  );
+const SignupScreen = ({ navigation }) => {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    municipalCouncil: "",
+    municipalCouncilName: "Select Municipal Council",
+  });
   const [councils, setCouncils] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [notification, setNotification] = useState({
@@ -73,30 +35,30 @@ export default function SignupScreen({ navigation }) {
   });
 
   useEffect(() => {
-    const loadCouncils = async () => {
-      try {
-        const councilList = await fetchMunicipalCouncils();
-        setCouncils(councilList);
-      } catch (error) {
-        showNotification("Failed to load municipal councils.", "error");
-      }
-    };
     loadCouncils();
   }, []);
 
+  const loadCouncils = async () => {
+    try {
+      const councilList = await fetchMunicipalCouncils();
+      setCouncils(councilList);
+    } catch (error) {
+      showNotification("Failed to load municipal councils.", "error");
+    }
+  };
+
   const showNotification = (message, type) => {
-    setNotification({
-      visible: true,
-      message,
-      type,
-    });
+    setNotification({ visible: true, message, type });
   };
 
   const handleSignUp = async () => {
+    const { name, email, password, municipalCouncil } = formData;
+
     if (!name || !email || !password || !municipalCouncil) {
       showNotification("Please fill in all fields!", "error");
       return;
     }
+
     try {
       const user = await signUpWithEmail(email, password);
       await saveUserData(user.uid, { name, email, municipalCouncil });
@@ -106,12 +68,19 @@ export default function SignupScreen({ navigation }) {
         "success"
       );
 
-      setTimeout(() => {
-        navigation.navigate("SignInSignUp");
-      }, 3000);
+      setTimeout(() => navigation.navigate("SignInSignUp"), 3000);
     } catch (error) {
       showNotification(error.message, "error");
     }
+  };
+
+  const handleCouncilSelect = (council) => {
+    setFormData((prev) => ({
+      ...prev,
+      municipalCouncil: council.id,
+      municipalCouncilName: council.name,
+    }));
+    setShowDropdown(false);
   };
 
   return (
@@ -127,25 +96,28 @@ export default function SignupScreen({ navigation }) {
       />
       <View style={styles.card}>
         <CustomText style={styles.title}>Sign Up</CustomText>
+
         <TextInput
           placeholder="Name"
           style={styles.input}
           placeholderTextColor={COLORS.placeholderTextColor}
-          onChangeText={setName}
+          onChangeText={(name) => setFormData((prev) => ({ ...prev, name }))}
         />
         <TextInput
           placeholder="Email"
           style={styles.input}
           placeholderTextColor={COLORS.placeholderTextColor}
           keyboardType="email-address"
-          onChangeText={setEmail}
+          onChangeText={(email) => setFormData((prev) => ({ ...prev, email }))}
         />
         <TextInput
           placeholder="Password"
           style={styles.input}
           placeholderTextColor={COLORS.placeholderTextColor}
           secureTextEntry
-          onChangeText={setPassword}
+          onChangeText={(password) =>
+            setFormData((prev) => ({ ...prev, password }))
+          }
         />
 
         <TouchableOpacity
@@ -156,10 +128,12 @@ export default function SignupScreen({ navigation }) {
           <CustomText
             style={[
               styles.dropdownButtonText,
-              municipalCouncil ? styles.dropdownButtonTextSelected : null,
+              formData.municipalCouncil
+                ? styles.dropdownButtonTextSelected
+                : null,
             ]}
           >
-            {municipalCouncilName}
+            {formData.municipalCouncilName}
           </CustomText>
           <Icon
             name="arrow-drop-down"
@@ -185,11 +159,7 @@ export default function SignupScreen({ navigation }) {
                   <TouchableOpacity
                     key={council.id}
                     style={styles.dropdownItem}
-                    onPress={() => {
-                      setMunicipalCouncil(council.id);
-                      setMunicipalCouncilName(council.name);
-                      setShowDropdown(false);
-                    }}
+                    onPress={() => handleCouncilSelect(council)}
                   >
                     <CustomText style={styles.dropdownItemText}>
                       {council.name}
@@ -223,36 +193,13 @@ export default function SignupScreen({ navigation }) {
       </View>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
     padding: 20,
-  },
-  notificationBanner: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    left: 20,
-    padding: 15,
-    borderRadius: 8,
-    zIndex: 1000,
-    shadowColor: COLORS.black,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  notificationText: {
-    color: COLORS.white,
-    fontSize: 14,
-    textAlign: "center",
-    fontWeight: "600",
   },
   logo: {
     width: 150,
@@ -279,7 +226,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     textAlign: "center",
     marginBottom: 20,
-    fontWeight: 500,
+    fontWeight: "500",
   },
   input: {
     borderWidth: 1,
@@ -355,3 +302,5 @@ const styles = StyleSheet.create({
     textDecorationLine: "none",
   },
 });
+
+export default SignupScreen;

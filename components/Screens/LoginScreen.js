@@ -1,57 +1,22 @@
-import React, { useState, useEffect } from "react";
+// screens/LoginScreen.js
+import React, { useState } from "react";
 import {
   View,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   Image,
-  Animated,
 } from "react-native";
 import { loginWithEmail, sendPasswordReset } from "../services/firebaseAuth";
+import NotificationBanner from "../utils/NotificationBanner";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
 
-const NotificationBanner = ({ message, type, visible, onHide }) => {
-  const translateY = useState(new Animated.Value(-100))[0];
-
-  useEffect(() => {
-    if (visible) {
-      Animated.sequence([
-        Animated.timing(translateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.delay(3000),
-        Animated.timing(translateY, {
-          toValue: -100,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => onHide());
-    }
-  }, [visible]);
-
-  const backgroundColor =
-    type === "success" ? COLORS.successbanner : COLORS.errorbanner;
-
-  if (!visible) return null;
-
-  return (
-    <Animated.View
-      style={[
-        styles.notificationBanner,
-        { transform: [{ translateY }], backgroundColor },
-      ]}
-    >
-      <CustomText style={styles.notificationText}>{message}</CustomText>
-    </Animated.View>
-  );
-};
-
-export default function LoginScreen({ navigation }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+const LoginScreen = ({ navigation }) => {
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
   const [notification, setNotification] = useState({
     visible: false,
     message: "",
@@ -67,6 +32,8 @@ export default function LoginScreen({ navigation }) {
   };
 
   const handleLogin = async () => {
+    const { email, password } = formData;
+
     if (!email || !password) {
       showNotification("Please enter both email and password.", "error");
       return;
@@ -87,6 +54,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   const handleForgotPassword = () => {
+    const { email } = formData;
     if (!email) {
       showNotification(
         "Please enter your email to reset your password.",
@@ -118,16 +86,18 @@ export default function LoginScreen({ navigation }) {
           placeholderTextColor={COLORS.placeholderTextColor}
           keyboardType="email-address"
           autoCapitalize="none"
-          onChangeText={setEmail}
-          value={email}
+          onChangeText={(email) => setFormData((prev) => ({ ...prev, email }))}
+          value={formData.email}
         />
         <TextInput
           placeholder="Password"
           style={styles.input}
           placeholderTextColor={COLORS.placeholderTextColor}
           secureTextEntry
-          onChangeText={setPassword}
-          value={password}
+          onChangeText={(password) =>
+            setFormData((prev) => ({ ...prev, password }))
+          }
+          value={formData.password}
         />
 
         <TouchableOpacity
@@ -158,36 +128,13 @@ export default function LoginScreen({ navigation }) {
       </View>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
     padding: 20,
-  },
-  notificationBanner: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    left: 20,
-    padding: 15,
-    borderRadius: 8,
-    zIndex: 1000,
-    shadowColor: COLORS.black,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  notificationText: {
-    color: COLORS.white,
-    fontSize: 14,
-    textAlign: "center",
-    fontWeight: "600",
   },
   logo: {
     width: 150,
@@ -214,7 +161,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     textAlign: "center",
     marginBottom: 20,
-    fontWeight: 500,
+    fontWeight: "500",
   },
   input: {
     borderWidth: 1,
@@ -257,3 +204,5 @@ const styles = StyleSheet.create({
     textDecorationLine: "none",
   },
 });
+
+export default LoginScreen;

@@ -14,8 +14,8 @@ import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
 import greetings from "../utils/greetings";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { getFirebaseAuth } from "../utils/firebaseConfig";
-import { fetchUserProfile } from "../services/firebaseFirestore";
+import { auth, firestore } from "../utils/firebaseConfig";
+import { doc, getDoc } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NewsFeed } from "../api/NewsFeed";
 import { useFocusEffect } from "@react-navigation/native";
@@ -60,13 +60,11 @@ export default function HomeScreen({ navigation }) {
 
   const fetchUserData = async () => {
     try {
-      const auth = await getFirebaseAuth();
-      if (!auth) throw new Error("Auth not initialized");
-
       const user = auth.currentUser;
       if (user) {
-        const userData = await fetchUserProfile(user.uid);
-        if (userData) {
+        const userDoc = await getDoc(doc(firestore, "users", user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
           setUserName(userData.name);
 
           if (userData.wardName && userData.districtName) {
@@ -86,9 +84,6 @@ export default function HomeScreen({ navigation }) {
 
   const fetchTodaySchedule = async () => {
     try {
-      const auth = await getFirebaseAuth();
-      if (!auth) throw new Error("Auth not initialized");
-
       const user = auth.currentUser;
       if (user) {
         const scheduleData = await fetchUserSchedules(user.uid);

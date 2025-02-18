@@ -9,15 +9,12 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { getFirebaseFirestore } from "../utils/firebaseConfig";
+import { firestore } from "../utils/firebaseConfig";
 
 // Save user data to Firestore
 export const saveUserData = async (uid, userData) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
-    const userRef = doc(db, "users", uid);
+    const userRef = doc(firestore, "users", uid);
     await setDoc(userRef, {
       ...userData,
       createdAt: serverTimestamp(),
@@ -31,10 +28,7 @@ export const saveUserData = async (uid, userData) => {
 // Fetch enabled municipal councils
 export const fetchMunicipalCouncils = async () => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
-    const councilsRef = collection(db, "municipalCouncils");
+    const councilsRef = collection(firestore, "municipalCouncils");
     const q = query(councilsRef, where("isEnabled", "==", true));
     const snapshot = await getDocs(q);
 
@@ -51,10 +45,7 @@ export const fetchMunicipalCouncils = async () => {
 // Fetch user profile data
 export const fetchUserProfile = async (uid) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
-    const userDoc = await getDoc(doc(db, "users", uid));
+    const userDoc = await getDoc(doc(firestore, "users", uid));
     if (userDoc.exists()) {
       return userDoc.data();
     }
@@ -68,11 +59,8 @@ export const fetchUserProfile = async (uid) => {
 // Fetch districts for a municipal council
 export const fetchDistrictsForMunicipalCouncil = async (municipalCouncilId) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
     const districtRef = collection(
-      db,
+      firestore,
       `municipalCouncils/${municipalCouncilId}/Districts`
     );
     const districtSnapshot = await getDocs(districtRef);
@@ -89,11 +77,8 @@ export const fetchDistrictsForMunicipalCouncil = async (municipalCouncilId) => {
 // Fetch wards for a district
 export const fetchWardsForDistrict = async (municipalCouncilId, districtId) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
     const wardRef = collection(
-      db,
+      firestore,
       `municipalCouncils/${municipalCouncilId}/Districts/${districtId}/Wards`
     );
     const wardSnapshot = await getDocs(wardRef);
@@ -110,10 +95,7 @@ export const fetchWardsForDistrict = async (municipalCouncilId, districtId) => {
 // Update user location
 export const updateUserLocation = async (uid, locationData) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
-    const userRef = doc(db, "users", uid);
+    const userRef = doc(firestore, "users", uid);
     await updateDoc(userRef, {
       ...locationData,
       updatedAt: serverTimestamp(),
@@ -128,10 +110,7 @@ export const updateUserLocation = async (uid, locationData) => {
 // Update user profile
 export const updateUserProfile = async (uid, userData) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
-    const userRef = doc(db, "users", uid);
+    const userRef = doc(firestore, "users", uid);
     await updateDoc(userRef, {
       ...userData,
       updatedAt: serverTimestamp(),
@@ -145,16 +124,13 @@ export const updateUserProfile = async (uid, userData) => {
 // Fetch Collection Schedules
 export const fetchUserSchedules = async (uid) => {
   try {
-    const db = await getFirebaseFirestore();
-    if (!db) throw new Error("Firestore not initialized");
-
     const userData = await fetchUserProfile(uid);
     if (!userData?.municipalCouncil || !userData?.district || !userData?.ward) {
       throw new Error("Location not set");
     }
 
     const schedulesRef = collection(
-      db,
+      firestore,
       `municipalCouncils/${userData.municipalCouncil}/Districts/${userData.district}/Wards/${userData.ward}/schedules`
     );
     const schedulesSnapshot = await getDocs(schedulesRef);

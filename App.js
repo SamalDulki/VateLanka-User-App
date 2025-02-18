@@ -15,10 +15,9 @@ import { ScheduleScreen } from "./components/Screens/ScheduleScreen";
 import { ReportScreen } from "./components/Screens/ReportScreen";
 import { TrackScreen } from "./components/Screens/TrackScreen";
 import { RecycleScreen } from "./components/Screens/RecycleScreen";
-import { getFirebaseAuth } from "./components/utils/firebaseConfig";
+import { auth } from "./components/utils/firebaseConfig";
 import Icon from "react-native-vector-icons/Feather";
 import { COLORS } from "./components/utils/Constants";
-import { onAuthStateChanged } from "firebase/auth";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -90,26 +89,9 @@ function HomeTabs() {
 export default function App() {
   const [initializing, setInitializing] = React.useState(true);
   const [user, setUser] = React.useState(null);
-  const [auth, setAuth] = React.useState(null);
 
   React.useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const firebaseAuth = await getFirebaseAuth();
-        setAuth(firebaseAuth);
-      } catch (error) {
-        console.error("Failed to initialize Firebase Auth:", error);
-        setInitializing(false);
-      }
-    };
-
-    initializeAuth();
-  }, []);
-
-  React.useEffect(() => {
-    if (!auth) return;
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user && !user.emailVerified) {
         auth.signOut();
         setUser(null);
@@ -123,7 +105,7 @@ export default function App() {
     });
 
     return unsubscribe;
-  }, [auth, initializing]);
+  }, [initializing]);
 
   if (initializing) return null;
 

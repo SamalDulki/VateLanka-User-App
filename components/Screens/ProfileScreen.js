@@ -15,6 +15,7 @@ import { COLORS } from "../utils/Constants";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NotificationBanner from "../utils/NotificationBanner";
+import { clearUserSession } from "../utils/authStorage";
 import {
   fetchUserProfile,
   fetchDistrictsForMunicipalCouncil,
@@ -237,7 +238,11 @@ export default function ProfileScreen({ navigation }) {
   const handleSignOut = async () => {
     try {
       await AsyncStorage.removeItem("userLocation");
+      await AsyncStorage.removeItem("subGreeting");
+      await AsyncStorage.removeItem("subGreetingTimestamp");
+      await clearUserSession();
       await auth.signOut();
+
       navigation.reset({
         index: 0,
         routes: [{ name: "Welcome" }],

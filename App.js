@@ -18,6 +18,11 @@ import { RecycleScreen } from "./components/Screens/RecycleScreen";
 import { auth } from "./components/utils/firebaseConfig";
 import Icon from "react-native-vector-icons/Feather";
 import { COLORS } from "./components/utils/Constants";
+import {
+  saveUserSession,
+  clearUserSession,
+  getUserSession,
+} from "./components/utils/authStorage";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -91,13 +96,29 @@ export default function App() {
   const [user, setUser] = React.useState(null);
 
   React.useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        const userSession = await getUserSession();
+        if (userSession && userSession.emailVerified) {
+          console.log("Found existing session");
+        }
+      } catch (error) {
+        console.error("Authentication initialization error:", error);
+      }
+    };
+
+    initializeAuth();
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user && !user.emailVerified) {
         auth.signOut();
+        clearUserSession();
         setUser(null);
       } else if (user && user.emailVerified) {
+        saveUserSession(user);
         setUser(user);
       } else {
+        clearUserSession();
         setUser(null);
       }
 

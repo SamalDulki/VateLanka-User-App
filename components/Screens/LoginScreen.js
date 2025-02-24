@@ -10,6 +10,7 @@ import { loginWithEmail, sendPasswordReset } from "../services/firebaseAuth";
 import NotificationBanner from "../utils/NotificationBanner";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
+import { saveUserSession } from "../utils/authStorage";
 
 const LoginScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -38,11 +39,20 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
     try {
-      await loginWithEmail(email, password);
+      const user = await loginWithEmail(email, password);
+
+      if (user && user.emailVerified) {
+        await saveUserSession(user);
+      }
+
       showNotification("Login successful!", "success");
+
       setTimeout(() => {
-        navigation.navigate("HomeScreen");
-      }, 3000);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MainApp" }],
+        });
+      }, 1500);
     } catch (error) {
       if (error.message.includes("Please verify your email")) {
         showNotification(error.message, "error");

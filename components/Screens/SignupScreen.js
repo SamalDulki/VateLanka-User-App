@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   TextInput,
@@ -7,6 +7,7 @@ import {
   Image,
   Modal,
   ScrollView,
+  Linking,
 } from "react-native";
 import { signUpWithEmail } from "../services/firebaseAuth";
 import {
@@ -33,6 +34,9 @@ const SignupScreen = ({ navigation }) => {
     message: "",
     type: "success",
   });
+
+  const TERMS_URL = "https://www.vatelanka.lk/terms-conditions";
+  const PRIVACY_URL = "https://www.vatelanka.lk/privacy-policy";
 
   useEffect(() => {
     loadCouncils();
@@ -82,6 +86,16 @@ const SignupScreen = ({ navigation }) => {
     }));
     setShowDropdown(false);
   };
+
+  const openURL = useCallback(async (url) => {
+    const supported = await Linking.canOpenURL(url);
+
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      showNotification(`Cannot open URL: ${url}`, "error");
+    }
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -170,6 +184,27 @@ const SignupScreen = ({ navigation }) => {
             </View>
           </TouchableOpacity>
         </Modal>
+
+        <View style={styles.termsContainer}>
+          <CustomText style={styles.termsText}>
+            By clicking Sign Up, you acknowledge that you have read and agree to
+            VateLanka's{" "}
+            <CustomText
+              style={styles.termsLink}
+              onPress={() => openURL(TERMS_URL)}
+            >
+              Terms of Conditions
+            </CustomText>{" "}
+            and{" "}
+            <CustomText
+              style={styles.termsLink}
+              onPress={() => openURL(PRIVACY_URL)}
+            >
+              Privacy Policy
+            </CustomText>
+            .
+          </CustomText>
+        </View>
 
         <TouchableOpacity
           style={styles.button}
@@ -275,6 +310,19 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 14,
     color: COLORS.black,
+  },
+  termsContainer: {
+    marginBottom: 15,
+  },
+  termsText: {
+    fontSize: 12,
+    color: COLORS.textGray,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: COLORS.primary,
+    fontWeight: "500",
   },
   button: {
     backgroundColor: COLORS.primary,

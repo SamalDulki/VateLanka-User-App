@@ -16,6 +16,8 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NotificationBanner from "../utils/NotificationBanner";
 import { clearUserSession } from "../utils/authStorage";
+import LocationPicker from "../utils/LocationPicker";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import {
   fetchUserProfile,
   fetchDistrictsForMunicipalCouncil,
@@ -43,6 +45,7 @@ export default function ProfileScreen({ navigation }) {
   const [nic, setNic] = useState("");
   const [birthday, setBirthday] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [homeLocation, setHomeLocation] = useState(null);
   const [notification, setNotification] = useState({
     visible: false,
     message: "",
@@ -88,6 +91,10 @@ export default function ProfileScreen({ navigation }) {
             setSelectedDistrictName(userData.districtName);
             setSelectedWardName(userData.wardName);
             setLocationLocked(true);
+          }
+
+          if (userData.homeLocation) {
+            setHomeLocation(userData.homeLocation);
           }
 
           await fetchDistricts(userData.municipalCouncil);
@@ -202,6 +209,16 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const handleUpdateUserLocation = async () => {
+    if (!selectedDistrict || !selectedWard) {
+      showNotification("Please select both district and ward");
+      return;
+    }
+
+    if (!homeLocation) {
+      showNotification("Please select your home location on the map");
+      return;
+    }
+
     setLoading(true);
     try {
       const user = auth.currentUser;
@@ -216,6 +233,8 @@ export default function ProfileScreen({ navigation }) {
           ward: selectedWard,
           districtName: selectedDistrictData.name,
           wardName: selectedWardData.name,
+          homeLocation: homeLocation,
+          updatedAt: new Date().toISOString(),
         };
 
         await updateUserLocation(user.uid, locationData);
@@ -264,6 +283,45 @@ export default function ProfileScreen({ navigation }) {
           ? `${selectedWardName}, ${selectedDistrictName}`
           : "Location not set"}
       </CustomText>
+
+      {homeLocation && (
+        <View style={styles.homeLocationContainer}>
+          <View style={styles.homeLocationHeader}>
+            <Icon name="home" size={18} color={COLORS.primary} />
+            <CustomText style={styles.homeLocationLabel}>
+              Home Address
+            </CustomText>
+          </View>
+          <View style={styles.homeLocationMapThumbnail}>
+            <MapView
+              provider={PROVIDER_DEFAULT}
+              style={styles.miniMap}
+              region={{
+                latitude: homeLocation.latitude,
+                longitude: homeLocation.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              pitchEnabled={false}
+              rotateEnabled={false}
+            >
+              <Marker
+                coordinate={{
+                  latitude: homeLocation.latitude,
+                  longitude: homeLocation.longitude,
+                }}
+              />
+            </MapView>
+            <CustomText style={styles.coordinatesText}>
+              {homeLocation.latitude.toFixed(6)},{" "}
+              {homeLocation.longitude.toFixed(6)}
+            </CustomText>
+          </View>
+        </View>
+      )}
+
       {locationLocked && (
         <View style={styles.lockedMessageContainer}>
           <Icon name="lock" size={16} color={COLORS.errorbanner} />
@@ -443,17 +501,47 @@ export default function ProfileScreen({ navigation }) {
                       disabled={locationLocked || !selectedDistrict}
                     />
 
-                    {!locationLocked && selectedDistrict && selectedWard && (
-                      <TouchableOpacity
-                        style={styles.updateButton}
-                        onPress={handleUpdateUserLocation}
-                      >
-                        <Icon name="check" size={20} color={COLORS.white} />
-                        <CustomText style={styles.updateButtonText}>
-                          Confirm Location
-                        </CustomText>
-                      </TouchableOpacity>
+                    {selectedDistrict && selectedWard && (
+                      <>
+                        <View style={styles.sectionSubtitleContainer}>
+                          <Icon name="home" size={20} color={COLORS.primary} />
+                          <CustomText style={styles.sectionSubtitle}>
+                            Set Your Exact Home Location
+                          </CustomText>
+                        </View>
+
+                        <LocationPicker
+                          initialLocation={homeLocation}
+                          onLocationSelect={(location) =>
+                            setHomeLocation(location)
+                          }
+                          disabled={locationLocked}
+                        />
+
+                        <View style={styles.instructionsBox}>
+                          <Icon name="info" size={16} color={COLORS.primary} />
+                          <CustomText style={styles.instructionsText}>
+                            Tap on the map to mark your exact home location. You
+                            can drag the marker to adjust.
+                          </CustomText>
+                        </View>
+                      </>
                     )}
+
+                    {!locationLocked &&
+                      selectedDistrict &&
+                      selectedWard &&
+                      homeLocation && (
+                        <TouchableOpacity
+                          style={styles.updateButton}
+                          onPress={handleUpdateUserLocation}
+                        >
+                          <Icon name="check" size={20} color={COLORS.white} />
+                          <CustomText style={styles.updateButtonText}>
+                            Confirm & Lock My Location
+                          </CustomText>
+                        </TouchableOpacity>
+                      )}
                   </>
                 )}
               </View>
@@ -803,5 +891,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.black,
     backgroundColor: COLORS.white,
+  },
+  sectionSubtitleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  sectionSubtitle: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: COLORS.black,
+    marginLeft: 10,
+  },
+  homeLocationValue: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    marginTop: 5,
+    marginBottom: 10,
+  },
+  instructionsBox: {
+    backgroundColor: COLORS.secondary,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  instructionsText: {
+    fontSize: 12,
+    color: COLORS.textGray,
+    marginLeft: 8,
+    flex: 1,
+  },
+  homeLocationContainer: {
+    marginTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderGray,
+    paddingTop: 15,
+  },
+  homeLocationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  homeLocationLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.textGray,
+    marginLeft: 8,
+  },
+  homeLocationMapThumbnail: {
+    height: 120,
+    width: "100%",
+    borderRadius: 8,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  miniMap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  coordinatesText: {
+    position: "absolute",
+    bottom: 5,
+    right: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    padding: 4,
+    borderRadius: 4,
+    fontSize: 10,
+    color: COLORS.textGray,
   },
 });

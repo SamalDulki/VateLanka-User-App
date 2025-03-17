@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   SafeAreaView,
@@ -7,91 +7,271 @@ import {
   ScrollView,
   Platform,
   Dimensions,
-  Animated,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
+import MapView, { Marker, PROVIDER_DEFAULT, Polyline } from "react-native-maps";
+import { auth } from "../utils/firebaseConfig";
+import NotificationBanner from "../utils/NotificationBanner";
+import { fetchUserProfile } from "../services/firebaseFirestore";
+import { firestore } from "../utils/firebaseConfig";
+import { collection, onSnapshot, getDocs } from "firebase/firestore";
 
 const { width, height } = Dimensions.get("window");
 
-// Location Marker Component
-const LocationMarker = ({ isUser = false, style }) => (
-  <View style={[styles.markerBase, style]}>
-    <View style={isUser ? styles.userMarker : styles.truckMarker}>
-      <MaterialIcons
-        name={isUser ? "person-pin" : "location-on"}
-        size={28}
-        color={isUser ? "#007AFF" : "#E84C3D"}
-      />
-    </View>
-    {!isUser && <View style={styles.markerShadow} />}
-  </View>
-);
+const calculateDistance = (location1, location2) => {
+  if (!location1 || !location2) return null;
 
-// Fake Map Component
-const FakeMap = () => (
-  <View style={styles.mapContainer}>
-    <View style={styles.mapContent}>
-      {/* Fake map elements */}
-      <View style={styles.waterArea1} />
-      <View style={styles.waterArea2} />
+  const toRadian = (angle) => (Math.PI / 180) * angle;
 
-      {/* Roads */}
-      <View style={styles.roadHorizontal1} />
-      <View style={styles.roadHorizontal2} />
-      <View style={styles.roadVertical1} />
-      <View style={styles.roadVertical2} />
+  const lat1 = location1.latitude;
+  const lon1 = location1.longitude;
+  const lat2 = location2.latitude;
+  const lon2 = location2.longitude;
 
-      {/* Landmarks */}
-      <View style={styles.parkArea} />
-      <View style={styles.buildingArea1} />
-      <View style={styles.buildingArea2} />
+  const R = 6371e3;
+  const φ1 = toRadian(lat1);
+  const φ2 = toRadian(lat2);
+  const Δφ = toRadian(lat2 - lat1);
+  const Δλ = toRadian(lon2 - lon1);
 
-      {/* User Location Marker */}
-      <LocationMarker
-        isUser={true}
-        style={{ position: "absolute", top: "25%", left: "40%" }}
-      />
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
 
-      {/* Truck Location Marker */}
-      <LocationMarker
-        style={{ position: "absolute", top: "65%", left: "25%" }}
-      />
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-      {/* Route Line */}
-      <View style={styles.routeLine} />
+  return Math.round(R * c);
+};
 
-      {/* Distance indicator */}
-      <View style={[styles.distancePoint, { left: "35%", top: "54%" }]}>
-        <CustomText style={styles.distancePointText}>400m</CustomText>
-      </View>
-    </View>
-  </View>
-);
+const subscribeToWardTrucks = async (userData, callback) => {
+  if (!userData?.municipalCouncil || !userData?.district || !userData?.ward) {
+    throw new Error("User location not set");
+  }
+
+  try {
+    const wardPath = `municipalCouncils/${userData.municipalCouncil}/Districts/${userData.district}/Wards/${userData.ward}`;
+
+    const supervisorsRef = collection(firestore, `${wardPath}/supervisors`);
+    const supervisorsSnapshot = await getDocs(supervisorsRef);
+
+    const unsubscribes = [];
+    const allTrucks = [];
+
+    for (const supervisorDoc of supervisorsSnapshot.docs) {
+      const supervisorId = supervisorDoc.id;
+
+      const trucksRef = collection(
+        firestore,
+        `${wardPath}/supervisors/${supervisorId}/trucks`
+      );
+
+      const unsubscribe = onSnapshot(trucksRef, (trucksSnapshot) => {
+        const trucksList = trucksSnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            supervisorId,
+            ...doc.data(),
+          }))
+          .filter(
+            (truck) =>
+              truck.routeStatus === "active" || truck.routeStatus === "paused"
+          );
+
+        allTrucks.splice(0, allTrucks.length, ...trucksList);
+        callback([...allTrucks]);
+      });
+
+      unsubscribes.push(unsubscribe);
+    }
+
+    return () => {
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  } catch (error) {
+    console.error("Error subscribing to ward trucks:", error);
+    throw error;
+  }
+};
 
 export function TrackScreen({ navigation }) {
   const [trucks, setTrucks] = useState([]);
-  const [mapAnimation] = useState(new Animated.Value(1));
+  const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
+  const [notification, setNotification] = useState({
+    visible: false,
+    message: "",
+    type: "success",
+  });
+  const mapRef = useRef(null);
+
+  const showNotification = (message, type = "error") => {
+    setNotification({
+      visible: true,
+      message,
+      type,
+    });
+  };
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadTruckData = async () => {
+    try {
+      setLoading(true);
+
+      const user = auth.currentUser;
+      if (!user) {
+        showNotification("You must be logged in to track trucks");
+        setLoading(false);
+        setRefreshing(false);
+        return { success: false };
+      }
+
+      const profile = await fetchUserProfile(user.uid);
+      setUserProfile(profile);
+
+      if (!profile.homeLocation) {
+        setLoading(false);
+        setRefreshing(false);
+        return { success: false, locationMissing: true };
+      }
+
+      if (!profile.ward || !profile.district || !profile.municipalCouncil) {
+        setLoading(false);
+        setRefreshing(false);
+        return { success: false, locationMissing: true };
+      }
+
+      const unsubscribe = await subscribeToWardTrucks(profile, (trucksList) => {
+        const trucksWithDistance = trucksList.map((truck) => {
+          if (truck.currentLocation && profile.homeLocation) {
+            const distance = calculateDistance(
+              profile.homeLocation,
+              truck.currentLocation
+            );
+            return { ...truck, distance };
+          }
+          return truck;
+        });
+
+        trucksWithDistance.sort(
+          (a, b) => (a.distance || Infinity) - (b.distance || Infinity)
+        );
+
+        setTrucks(trucksWithDistance);
+        setLoading(false);
+        setRefreshing(false);
+      });
+
+      return { success: true, unsubscribe };
+    } catch (error) {
+      console.error("Error loading truck data:", error);
+      showNotification(error.message || "Failed to load truck data");
+      setLoading(false);
+      setRefreshing(false);
+      return { success: false };
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadTruckData();
+  };
 
   useEffect(() => {
-    // Simulate fetching truck tracking data
-    const mockTrucks = [
-      {
-        id: 1,
-        type: "Garbage Truck",
-        licensePlate: "WP-CBK-9562",
-        driverName: "A. Perera",
-        estimatedTime: "15 min",
-        status: "on-route",
-        distance: 800,
-      },
-    ];
-    setTrucks(mockTrucks);
+    let unsubscribe = () => {};
+
+    const initializeData = async () => {
+      const result = await loadTruckData();
+      if (result.success && result.unsubscribe) {
+        unsubscribe = result.unsubscribe;
+      }
+    };
+
+    initializeData();
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
+      }
+    };
   }, []);
+
+  const formatEstimatedTime = (distance) => {
+    if (!distance) return "Unknown";
+
+    const adjustedDistance = distance * 1.3;
+
+    const timeInMinutes = Math.round((adjustedDistance / 1000 / 20) * 60);
+
+    if (timeInMinutes < 1) return "Less than a minute";
+    if (timeInMinutes === 1) return "1 minute";
+    return `${timeInMinutes} minutes`;
+  };
+
+  const fitToMarkers = () => {
+    if (!mapRef.current || !userProfile?.homeLocation || trucks.length === 0) {
+      if (mapRef.current && userProfile?.homeLocation) {
+        mapRef.current.animateToRegion({
+          latitude: userProfile.homeLocation.latitude,
+          longitude: userProfile.homeLocation.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+      }
+      return;
+    }
+
+    const markers = [
+      userProfile.homeLocation,
+      ...trucks
+        .filter((truck) => truck.currentLocation)
+        .map((truck) => truck.currentLocation),
+    ];
+
+    mapRef.current.fitToCoordinates(markers, {
+      edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+      animated: true,
+    });
+  };
+
+  const goToProfileScreen = () => {
+    navigation.navigate("Profile");
+  };
+
+  const renderLocationMissingMessage = () => (
+    <View style={styles.locationMissingContainer}>
+      <MaterialIcons name="location-off" size={60} color={COLORS.errorbanner} />
+      <CustomText style={styles.locationMissingTitle}>
+        Location Not Set
+      </CustomText>
+      <CustomText style={styles.locationMissingText}>
+        Please set your home location in your profile before tracking trucks
+      </CustomText>
+      <TouchableOpacity
+        style={styles.setLocationButton}
+        onPress={goToProfileScreen}
+      >
+        <MaterialIcons name="edit-location" size={20} color={COLORS.white} />
+        <CustomText style={styles.setLocationButtonText}>
+          Set My Location
+        </CustomText>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
+      <NotificationBanner
+        visible={notification.visible}
+        message={notification.message}
+        type={notification.type}
+        onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
+      />
+
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <CustomText style={styles.heading}>Truck Tracking</CustomText>
@@ -102,66 +282,196 @@ export function TrackScreen({ navigation }) {
       </View>
 
       <View style={styles.content}>
-        {/* Fake Map Section */}
-        <Animated.View
-          style={[
-            styles.mapWrapper,
-            {
-              opacity: mapAnimation,
-              transform: [
-                {
-                  translateY: mapAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <FakeMap />
-        </Animated.View>
-
-        {/* Truck List Section */}
-        <ScrollView
-          style={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {trucks.map((truck) => (
-            <View key={truck.id} style={styles.card}>
-              <MaterialIcons
-                name="local-shipping"
-                size={24}
-                color={COLORS.primary}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <CustomText style={styles.loadingText}>
+              Loading trucks...
+            </CustomText>
+          </View>
+        ) : !userProfile?.homeLocation ? (
+          renderLocationMissingMessage()
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.scrollViewContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[COLORS.primary]}
+                tintColor={COLORS.primary}
               />
-              <View style={styles.cardContent}>
-                <CustomText style={styles.cardTitle} numberOfLines={1}>
-                  {truck.type} - {truck.licensePlate}
-                </CustomText>
-                <View style={styles.statusContainer}>
-                  <CustomText style={styles.cardTime}>
-                    {truck.distance}m - {truck.estimatedTime}
-                  </CustomText>
-                  <View
-                    style={[
-                      styles.statusDot,
-                      {
-                        backgroundColor:
-                          truck.status === "on-route"
-                            ? COLORS.primary
-                            : COLORS.error,
-                      },
-                    ]}
+            }
+          >
+            <View style={styles.mapWrapper}>
+              <MapView
+                ref={mapRef}
+                provider={PROVIDER_DEFAULT}
+                style={styles.mapContainer}
+                initialRegion={
+                  userProfile?.homeLocation
+                    ? {
+                        latitude: userProfile.homeLocation.latitude,
+                        longitude: userProfile.homeLocation.longitude,
+                        latitudeDelta: 0.01,
+                        longitudeDelta: 0.01,
+                      }
+                    : null
+                }
+                onLayout={fitToMarkers}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass={true}
+                rotateEnabled={true}
+                scrollEnabled={true}
+                zoomEnabled={true}
+              >
+                {userProfile?.homeLocation && (
+                  <Marker
+                    coordinate={userProfile.homeLocation}
+                    title="Your Location"
+                    description="Your home address"
+                  >
+                    <View style={styles.userMarker}>
+                      <MaterialIcons
+                        name="home"
+                        size={24}
+                        color={COLORS.primary}
+                      />
+                    </View>
+                  </Marker>
+                )}
+
+                {trucks.map(
+                  (truck) =>
+                    truck.currentLocation && (
+                      <Marker
+                        key={truck.id}
+                        coordinate={truck.currentLocation}
+                        title={`${truck.driverName || "Driver"}'s Truck`}
+                        description={`${
+                          truck.distance
+                            ? `${truck.distance}m away`
+                            : "Distance unknown"
+                        }`}
+                      >
+                        <View
+                          style={[
+                            styles.truckMarker,
+                            truck.routeStatus === "paused" &&
+                              styles.pausedTruckMarker,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="local-shipping"
+                            size={20}
+                            color={
+                              truck.routeStatus === "paused"
+                                ? COLORS.textGray
+                                : COLORS.white
+                            }
+                          />
+                        </View>
+                      </Marker>
+                    )
+                )}
+
+                {trucks.map(
+                  (truck) =>
+                    truck.currentLocation &&
+                    userProfile?.homeLocation && (
+                      <Polyline
+                        key={`route-${truck.id}`}
+                        coordinates={[
+                          userProfile.homeLocation,
+                          truck.currentLocation,
+                        ]}
+                        strokeWidth={2}
+                        strokeColor="rgba(0, 122, 255, 0.6)"
+                        lineDashPattern={[5, 5]}
+                      />
+                    )
+                )}
+              </MapView>
+
+              <TouchableOpacity
+                style={styles.zoomButton}
+                onPress={fitToMarkers}
+              >
+                <MaterialIcons
+                  name="my-location"
+                  size={24}
+                  color={COLORS.primary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.truckListContainer}>
+              {trucks.length === 0 ? (
+                <View style={styles.noTrucksContainer}>
+                  <MaterialIcons
+                    name="info-outline"
+                    size={40}
+                    color={COLORS.textGray}
                   />
-                  <CustomText style={styles.statusText}>
-                    {truck.status.charAt(0).toUpperCase() +
-                      truck.status.slice(1)}
+                  <CustomText style={styles.noTrucksText}>
+                    No active waste collection trucks in your area right now
                   </CustomText>
                 </View>
-              </View>
+              ) : (
+                trucks.map((truck) => (
+                  <View key={truck.id} style={styles.card}>
+                    <MaterialIcons
+                      name="local-shipping"
+                      size={24}
+                      color={
+                        truck.routeStatus === "active"
+                          ? COLORS.primary
+                          : COLORS.textGray
+                      }
+                    />
+                    <View style={styles.cardContent}>
+                      <CustomText style={styles.cardTitle} numberOfLines={1}>
+                        {truck.driverName || "Driver"}'s Truck
+                      </CustomText>
+                      <CustomText style={styles.licensePlate} numberOfLines={1}>
+                        {truck.numberPlate || "No plate info"}
+                      </CustomText>
+                      <View style={styles.statusContainer}>
+                        <CustomText style={styles.cardTime}>
+                          {truck.distance ? `${truck.distance}m - ` : ""}
+                          {truck.distance
+                            ? formatEstimatedTime(truck.distance)
+                            : "Unknown ETA"}
+                        </CustomText>
+                        <View
+                          style={[
+                            styles.statusDot,
+                            {
+                              backgroundColor:
+                                truck.routeStatus === "active"
+                                  ? COLORS.primary
+                                  : COLORS.textGray,
+                            },
+                          ]}
+                        />
+                        <CustomText style={styles.statusText}>
+                          {truck.routeStatus === "active"
+                            ? "Active"
+                            : truck.routeStatus === "paused"
+                            ? "Paused"
+                            : "Inactive"}
+                        </CustomText>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+              <View style={styles.bottomSpace} />
             </View>
-          ))}
-        </ScrollView>
+          </ScrollView>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -184,9 +494,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  headerTop: {
-    paddingTop: Platform.OS === "ios" ? 0 : 20,
-  },
   heading: {
     fontSize: 28,
     fontWeight: "600",
@@ -201,6 +508,16 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    color: COLORS.textGray,
+    fontSize: 16,
+  },
   mapWrapper: {
     marginBottom: 16,
     borderRadius: 16,
@@ -212,152 +529,54 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   mapContainer: {
-    height: height * 0.35,
-    backgroundColor: COLORS.white,
-  },
-  mapContent: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    position: "relative",
-  },
-  // Map element styles (similar to previous implementation)
-  waterArea1: {
-    position: "absolute",
-    left: 0,
-    top: "10%",
-    width: "18%",
-    height: "40%",
-    backgroundColor: "#B2EBF2",
-    borderRadius: 10,
-  },
-  waterArea2: {
-    position: "absolute",
-    left: 0,
-    top: "55%",
-    width: "12%",
-    height: "25%",
-    backgroundColor: "#B2EBF2",
-    borderRadius: 8,
-  },
-  parkArea: {
-    position: "absolute",
-    right: "10%",
-    bottom: "10%",
-    width: "15%",
-    height: "15%",
-    backgroundColor: "#C8E6C9",
-    borderRadius: 8,
-  },
-  buildingArea1: {
-    position: "absolute",
-    right: "15%",
-    top: "20%",
-    width: "10%",
-    height: "10%",
-    backgroundColor: "#EEEEEE",
-    borderRadius: 4,
-  },
-  buildingArea2: {
-    position: "absolute",
-    left: "25%",
-    bottom: "20%",
-    width: "8%",
-    height: "8%",
-    backgroundColor: "#EEEEEE",
-    borderRadius: 4,
-  },
-  roadHorizontal1: {
-    position: "absolute",
-    left: "5%",
-    top: "35%",
-    width: "90%",
-    height: 12,
-    backgroundColor: "#CFD8DC",
-    borderRadius: 6,
-  },
-  roadHorizontal2: {
-    position: "absolute",
-    left: "10%",
-    top: "75%",
-    width: "80%",
-    height: 12,
-    backgroundColor: "#CFD8DC",
-    borderRadius: 6,
-  },
-  roadVertical1: {
-    position: "absolute",
-    left: "30%",
-    top: "20%",
-    width: 12,
-    height: "60%",
-    backgroundColor: "#CFD8DC",
-    borderRadius: 6,
-  },
-  roadVertical2: {
-    position: "absolute",
-    left: "70%",
-    top: "10%",
-    width: 12,
-    height: "70%",
-    backgroundColor: "#CFD8DC",
-    borderRadius: 6,
-  },
-  markerBase: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 48,
-    height: 48,
-  },
-  markerShadow: {
-    position: "absolute",
-    bottom: 0,
-    width: 20,
-    height: 6,
-    backgroundColor: "rgba(0,0,0,0.1)",
-    borderRadius: 10,
+    height: height * 0.5,
+    width: "100%",
   },
   userMarker: {
-    backgroundColor: "rgba(0, 122, 255, 0.1)",
-    width: 40,
-    height: 40,
+    backgroundColor: "white",
     borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 6,
     borderWidth: 2,
-    borderColor: "#007AFF",
+    borderColor: COLORS.primary,
   },
   truckMarker: {
-    backgroundColor: "rgba(232, 76, 61, 0.1)",
-    width: 40,
-    height: 40,
+    backgroundColor: COLORS.primary,
     borderRadius: 20,
+    padding: 6,
+    borderWidth: 2,
+    borderColor: "white",
+  },
+  pausedTruckMarker: {
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.borderGray,
+  },
+  zoomButton: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "white",
+    borderRadius: 30,
+    width: 50,
+    height: 50,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#E84C3D",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  routeLine: {
-    position: "absolute",
-    width: "20%",
-    height: 5,
-    backgroundColor: "#FF8C00",
-    transform: [{ rotate: "45deg" }],
-    top: "50%",
-    left: "30%",
-    borderRadius: 3,
+  noTrucksContainer: {
+    padding: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
   },
-  distancePoint: {
-    position: "absolute",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
-  distancePointText: {
-    fontSize: 10,
-    color: "#7F8C8D",
+  noTrucksText: {
+    color: COLORS.textGray,
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 10,
   },
   scrollContent: {
     flex: 1,
@@ -384,10 +603,15 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: COLORS.black,
   },
+  licensePlate: {
+    fontSize: 14,
+    color: COLORS.textGray,
+    marginTop: 2,
+  },
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 6,
   },
   statusDot: {
     width: 8,
@@ -403,6 +627,50 @@ const styles = StyleSheet.create({
   cardTime: {
     fontSize: 14,
     color: COLORS.textGray,
+  },
+  bottomSpace: {
+    height: 20,
+  },
+  locationMissingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  locationMissingTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: COLORS.errorbanner,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  locationMissingText: {
+    fontSize: 16,
+    color: COLORS.textGray,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  setLocationButton: {
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 15,
+    borderRadius: 12,
+    width: "80%",
+    marginTop: 10,
+  },
+  setLocationButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+  },
+  truckListContainer: {
+    flex: 1,
   },
 });
 

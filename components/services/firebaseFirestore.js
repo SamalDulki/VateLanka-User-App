@@ -150,3 +150,78 @@ export const fetchUserSchedules = async (uid) => {
     throw error;
   }
 };
+
+// Subscribe to all trucks in user's ward
+export const subscribeToWardTrucks = async (userData, callback) => {
+  if (!userData?.municipalCouncil || !userData?.district || !userData?.ward) {
+    throw new Error("User location not set");
+  }
+
+  try {
+    const wardPath = `municipalCouncils/${userData.municipalCouncil}/Districts/${userData.district}/Wards/${userData.ward}`;
+
+    const supervisorsRef = collection(firestore, `${wardPath}/supervisors`);
+    const supervisorsSnapshot = await getDocs(supervisorsRef);
+
+    const unsubscribes = [];
+
+    for (const supervisorDoc of supervisorsSnapshot.docs) {
+      const supervisorId = supervisorDoc.id;
+
+      const trucksRef = collection(
+        firestore,
+        `${wardPath}/supervisors/${supervisorId}/trucks`
+      );
+
+      const unsubscribe = onSnapshot(trucksRef, (trucksSnapshot) => {
+        const trucksList = trucksSnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            supervisorId,
+            ...doc.data(),
+          }))
+          .filter(
+            (truck) =>
+              truck.routeStatus === "active" || truck.routeStatus === "paused"
+          );
+
+        callback(trucksList);
+      });
+
+      unsubscribes.push(unsubscribe);
+    }
+
+    return () => {
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+    };
+  } catch (error) {
+    console.error("Error subscribing to ward trucks:", error);
+    throw error;
+  }
+};
+
+// Calculate distance between two points (in meters)
+export const calculateDistance = (location1, location2) => {
+  if (!location1 || !location2) return null;
+
+  const toRadian = (angle) => (Math.PI / 180) * angle;
+
+  const lat1 = location1.latitude;
+  const lon1 = location1.longitude;
+  const lat2 = location2.latitude;
+  const lon2 = location2.longitude;
+
+  const R = 6371e3;
+  const φ1 = toRadian(lat1);
+  const φ2 = toRadian(lat2);
+  const Δφ = toRadian(lat2 - lat1);
+  const Δλ = toRadian(lon2 - lon1);
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
+};

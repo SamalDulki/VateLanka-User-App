@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -147,16 +148,19 @@ export function TrackScreen({ navigation }) {
       }
 
       const unsubscribe = await subscribeToWardTrucks(profile, (trucksList) => {
-        const trucksWithDistance = trucksList.map((truck) => {
-          if (truck.currentLocation && profile.homeLocation) {
-            const distance = calculateDistance(
-              profile.homeLocation,
-              truck.currentLocation
-            );
-            return { ...truck, distance };
-          }
-          return truck;
-        });
+        const trucksWithDistance = trucksList
+          .map((truck) => {
+            if (truck.currentLocation && profile.homeLocation) {
+              const distance = calculateDistance(
+                profile.homeLocation,
+                truck.currentLocation
+              );
+              return { ...truck, distance };
+            }
+            return truck;
+          })
+          // Filter to only show trucks within 1km radius
+          .filter((truck) => truck.distance !== null && truck.distance <= 1000);
 
         trucksWithDistance.sort(
           (a, b) => (a.distance || Infinity) - (b.distance || Infinity)
@@ -255,7 +259,9 @@ export function TrackScreen({ navigation }) {
     const markers = [
       userProfile.homeLocation,
       ...trucks
-        .filter((truck) => truck.currentLocation)
+        .filter(
+          (truck) => truck.currentLocation && truck.routeStatus === "active"
+        )
         .map((truck) => truck.currentLocation),
     ];
 
@@ -372,34 +378,18 @@ export function TrackScreen({ navigation }) {
 
                 {trucks.map(
                   (truck) =>
-                    truck.currentLocation && (
+                    truck.currentLocation &&
+                    truck.routeStatus === "active" && (
                       <Marker
                         key={truck.id}
                         coordinate={truck.currentLocation}
-                        title={`${truck.driverName || "Driver"}'s Truck`}
-                        description={`${
-                          truck.distance
-                            ? `${truck.distance}m away`
-                            : "Distance unknown"
-                        }`}
+                        title={`Truck ${truck.numberPlate || "Unknown"}`}
+                        description={`${truck.distance}m away`}
                       >
-                        <View
-                          style={[
-                            styles.truckMarker,
-                            truck.routeStatus === "paused" &&
-                              styles.pausedTruckMarker,
-                          ]}
-                        >
-                          <MaterialIcons
-                            name="local-shipping"
-                            size={20}
-                            color={
-                              truck.routeStatus === "paused"
-                                ? COLORS.textGray
-                                : COLORS.white
-                            }
-                          />
-                        </View>
+                        <Image
+                          source={require("../ApplicationAssets/truck-icon.png")}
+                          style={styles.truckImage}
+                        />
                       </Marker>
                     )
                 )}
@@ -407,7 +397,8 @@ export function TrackScreen({ navigation }) {
                 {trucks.map(
                   (truck) =>
                     truck.currentLocation &&
-                    userProfile?.homeLocation && (
+                    userProfile?.homeLocation &&
+                    truck.routeStatus === "active" && (
                       <Polyline
                         key={`route-${truck.id}`}
                         coordinates={[
@@ -443,7 +434,8 @@ export function TrackScreen({ navigation }) {
                     color={COLORS.textGray}
                   />
                   <CustomText style={styles.noTrucksText}>
-                    No active waste collection trucks in your area right now
+                    No active waste collection trucks within 1km of your
+                    location
                   </CustomText>
                 </View>
               ) : (
@@ -452,18 +444,11 @@ export function TrackScreen({ navigation }) {
                     <MaterialIcons
                       name="local-shipping"
                       size={24}
-                      color={
-                        truck.routeStatus === "active"
-                          ? COLORS.primary
-                          : COLORS.textGray
-                      }
+                      color={COLORS.primary}
                     />
                     <View style={styles.cardContent}>
                       <CustomText style={styles.cardTitle} numberOfLines={1}>
-                        {truck.driverName || "Driver"}'s Truck
-                      </CustomText>
-                      <CustomText style={styles.licensePlate} numberOfLines={1}>
-                        {truck.numberPlate || "No plate info"}
+                        {truck.numberPlate || "No vehicle number"}
                       </CustomText>
                       <View style={styles.statusContainer}>
                         <CustomText style={styles.cardTime}>
@@ -471,24 +456,6 @@ export function TrackScreen({ navigation }) {
                           {truck.distance
                             ? formatEstimatedTime(truck.distance)
                             : "Unknown ETA"}
-                        </CustomText>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor:
-                                truck.routeStatus === "active"
-                                  ? COLORS.primary
-                                  : COLORS.textGray,
-                            },
-                          ]}
-                        />
-                        <CustomText style={styles.statusText}>
-                          {truck.routeStatus === "active"
-                            ? "Active"
-                            : truck.routeStatus === "paused"
-                            ? "Paused"
-                            : "Inactive"}
                         </CustomText>
                       </View>
                     </View>
@@ -566,16 +533,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.primary,
   },
-  truckMarker: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    padding: 6,
-    borderWidth: 2,
-    borderColor: "white",
-  },
-  pausedTruckMarker: {
-    backgroundColor: COLORS.secondary,
-    borderColor: COLORS.borderGray,
+  truckImage: {
+    width: 40,
+    height: 40,
+    resizeMode: "contain",
   },
   zoomButton: {
     position: "absolute",
@@ -630,26 +591,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: COLORS.black,
   },
-  licensePlate: {
-    fontSize: 14,
-    color: COLORS.textGray,
-    marginTop: 2,
-  },
   statusContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 6,
-  },
-  statusText: {
-    fontSize: 14,
-    color: COLORS.textGray,
-    fontWeight: "500",
   },
   cardTime: {
     fontSize: 14,

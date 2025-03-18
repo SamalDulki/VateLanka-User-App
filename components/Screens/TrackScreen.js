@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
@@ -199,6 +200,32 @@ export function TrackScreen({ navigation }) {
       }
     };
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const checkForUpdates = async () => {
+        if (!loading) {
+          const user = auth.currentUser;
+          if (user) {
+            const updatedProfile = await fetchUserProfile(user.uid);
+
+            if (
+              (!userProfile?.homeLocation && updatedProfile?.homeLocation) ||
+              (!userProfile?.ward && updatedProfile?.ward) ||
+              (!userProfile?.district && updatedProfile?.district)
+            ) {
+              console.log("Location was updated, reloading truck data");
+              await loadTruckData();
+            }
+          }
+        }
+      };
+
+      checkForUpdates();
+
+      return () => {};
+    }, [userProfile])
+  );
 
   const formatEstimatedTime = (distance) => {
     if (!distance) return "Unknown";

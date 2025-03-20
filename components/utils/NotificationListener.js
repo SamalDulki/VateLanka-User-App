@@ -1,4 +1,4 @@
-gitimport React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';

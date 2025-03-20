@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   SafeAreaView,
@@ -10,6 +10,14 @@ import {
   TouchableOpacity,
   Switch,
 } from "react-native";
+import * as Notifications from "expo-notifications";
+import {
+  saveNotificationPreferences,
+  getNotificationPreferences,
+  scheduleAllCollectionNotifications,
+  initializeNotifications,
+  checkAndRefreshDailyNotifications,
+} from "../services/NotificationService";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
 import { auth } from "../utils/firebaseConfig";
@@ -208,7 +216,17 @@ export function ScheduleScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    const loadNotificationPreferences = async () => {
+      const enabled = await initializeNotifications();
+      setNotificationsEnabled(enabled);
+    };
+
+    loadNotificationPreferences();
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -234,10 +252,37 @@ export function ScheduleScreen() {
       const scheduleData = await fetchUserSchedules(user.uid);
       const next7DaysSchedule = generateNext7DaysSchedule(scheduleData);
       setSchedules(next7DaysSchedule);
+
+      if (notificationsEnabled) {
+        await checkAndRefreshDailyNotifications(next7DaysSchedule);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNotificationToggle = async (enabled) => {
+    setNotificationsLoading(true);
+    try {
+      const success = await saveNotificationPreferences(enabled);
+      if (success) {
+        setNotificationsEnabled(enabled);
+
+        if (enabled) {
+          await scheduleAllCollectionNotifications(schedules);
+        } else {
+          await Notifications.cancelAllScheduledNotificationsAsync();
+        }
+      } else {
+        setNotificationsEnabled(!enabled);
+      }
+    } catch (error) {
+      console.error("Error toggling notifications:", error);
+      setNotificationsEnabled(!enabled);
+    } finally {
+      setNotificationsLoading(false);
     }
   };
 
@@ -329,21 +374,30 @@ export function ScheduleScreen() {
         <View style={styles.headerTop}>
           <CustomText style={styles.heading}>Collection Schedule</CustomText>
           <View style={styles.notificationToggle}>
-            <Icon
-              name={
-                notificationsEnabled
-                  ? "notifications-active"
-                  : "notifications-off"
-              }
-              size={24}
-              color={notificationsEnabled ? COLORS.primary : COLORS.textGray}
-            />
+            {notificationsLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={COLORS.primary}
+                style={{ marginRight: 8 }}
+              />
+            ) : (
+              <Icon
+                name={
+                  notificationsEnabled
+                    ? "notifications-active"
+                    : "notifications-off"
+                }
+                size={24}
+                color={notificationsEnabled ? COLORS.primary : COLORS.textGray}
+              />
+            )}
             <Switch
               value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
+              onValueChange={handleNotificationToggle}
               trackColor={{ false: COLORS.secondary, true: COLORS.primary }}
               thumbColor={COLORS.white}
               style={{ marginLeft: 8 }}
+              disabled={notificationsLoading}
             />
           </View>
         </View>

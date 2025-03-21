@@ -23,7 +23,6 @@ import {
   clearUserSession,
   getUserSession,
 } from "./components/utils/authStorage";
-import NotificationListener from "./components/utils/NotificationListener";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -133,8 +132,6 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <NotificationListener />
-      
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

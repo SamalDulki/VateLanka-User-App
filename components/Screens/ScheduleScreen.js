@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   SafeAreaView,
@@ -10,20 +10,17 @@ import {
   TouchableOpacity,
   Switch,
 } from "react-native";
-import * as Notifications from "expo-notifications";
-import {
-  saveNotificationPreferences,
-  getNotificationPreferences,
-  scheduleAllCollectionNotifications,
-  initializeNotifications,
-  checkAndRefreshDailyNotifications,
-} from "../services/NotificationService";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
 import { auth } from "../utils/firebaseConfig";
-import { fetchUserSchedules } from "../services/firebaseFirestore";
+import {
+  fetchUserSchedules,
+  fetchUserProfile,
+} from "../services/firebaseFirestore";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useFocusEffect } from "@react-navigation/native";
+import { MaterialIcons } from "@expo/vector-icons";
+import NotificationBanner from "../utils/NotificationBanner";
 
 const CALENDAR_STRIP_HEIGHT = 90;
 
@@ -209,24 +206,29 @@ const UpcomingCollectionCard = ({ collection, date, dayName }) => {
   );
 };
 
-export function ScheduleScreen() {
+export function ScheduleScreen({ navigation }) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [locationMissing, setLocationMissing] = useState(false);
+  const [notification, setNotification] = useState({
+    visible: false,
+    message: "",
+    type: "success",
+  });
   const scrollViewRef = useRef(null);
 
-  useEffect(() => {
-    const loadNotificationPreferences = async () => {
-      const enabled = await initializeNotifications();
-      setNotificationsEnabled(enabled);
-    };
-
-    loadNotificationPreferences();
-  }, []);
+  const showNotification = (message, type = "error") => {
+    setNotification({
+      visible: true,
+      message,
+      type,
+    });
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -244,45 +246,34 @@ export function ScheduleScreen() {
     try {
       setLoading(true);
       setError(null);
+      setLocationMissing(false);
+
       const user = auth.currentUser;
       if (!user) {
         throw new Error("Please sign in to view schedules");
       }
 
+      const profile = await fetchUserProfile(user.uid);
+      setUserProfile(profile);
+
+      if (
+        !profile.homeLocation ||
+        !profile.ward ||
+        !profile.district ||
+        !profile.municipalCouncil
+      ) {
+        setLocationMissing(true);
+        setLoading(false);
+        return;
+      }
+
       const scheduleData = await fetchUserSchedules(user.uid);
       const next7DaysSchedule = generateNext7DaysSchedule(scheduleData);
       setSchedules(next7DaysSchedule);
-
-      if (notificationsEnabled) {
-        await checkAndRefreshDailyNotifications(next7DaysSchedule);
-      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleNotificationToggle = async (enabled) => {
-    setNotificationsLoading(true);
-    try {
-      const success = await saveNotificationPreferences(enabled);
-      if (success) {
-        setNotificationsEnabled(enabled);
-
-        if (enabled) {
-          await scheduleAllCollectionNotifications(schedules);
-        } else {
-          await Notifications.cancelAllScheduledNotificationsAsync();
-        }
-      } else {
-        setNotificationsEnabled(!enabled);
-      }
-    } catch (error) {
-      console.error("Error toggling notifications:", error);
-      setNotificationsEnabled(!enabled);
-    } finally {
-      setNotificationsLoading(false);
     }
   };
 
@@ -344,11 +335,45 @@ export function ScheduleScreen() {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
+  const goToProfileScreen = () => {
+    navigation.navigate("Profile");
+  };
+
+  const renderLocationMissingMessage = () => (
+    <View style={styles.locationMissingContainer}>
+      <MaterialIcons name="location-off" size={60} color={COLORS.errorbanner} />
+      <CustomText style={styles.locationMissingTitle}>
+        Location Not Set
+      </CustomText>
+      <CustomText style={styles.locationMissingText}>
+        Please set your home location in your profile before viewing collection
+        schedules
+      </CustomText>
+      <TouchableOpacity
+        style={styles.setLocationButton}
+        onPress={goToProfileScreen}
+      >
+        <MaterialIcons name="edit-location" size={20} color={COLORS.white} />
+        <CustomText style={styles.setLocationButtonText}>
+          Set My Location
+        </CustomText>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <CustomText style={styles.heading}>Collection Schedule</CustomText>
+          </View>
+        </View>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={COLORS.primary} />
+          <CustomText style={styles.loadingText}>
+            Loading schedule...
+          </CustomText>
         </View>
       </SafeAreaView>
     );
@@ -357,6 +382,11 @@ export function ScheduleScreen() {
   if (error) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <CustomText style={styles.heading}>Collection Schedule</CustomText>
+          </View>
+        </View>
         <View style={styles.centered}>
           <Icon name="error-outline" size={48} color={COLORS.errorbanner} />
           <CustomText style={styles.errorText}>{error}</CustomText>
@@ -370,17 +400,18 @@ export function ScheduleScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <NotificationBanner
+        visible={notification.visible}
+        message={notification.message}
+        type={notification.type}
+        onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
+      />
+
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <CustomText style={styles.heading}>Collection Schedule</CustomText>
-          <View style={styles.notificationToggle}>
-            {notificationsLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={COLORS.primary}
-                style={{ marginRight: 8 }}
-              />
-            ) : (
+          {!locationMissing && (
+            <View style={styles.notificationToggle}>
               <Icon
                 name={
                   notificationsEnabled
@@ -390,100 +421,109 @@ export function ScheduleScreen() {
                 size={24}
                 color={notificationsEnabled ? COLORS.primary : COLORS.textGray}
               />
-            )}
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={handleNotificationToggle}
-              trackColor={{ false: COLORS.secondary, true: COLORS.primary }}
-              thumbColor={COLORS.white}
-              style={{ marginLeft: 8 }}
-              disabled={notificationsLoading}
-            />
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.calendarStrip}>
-        {schedules.map((daySchedule, index) => (
-          <CalendarDay
-            key={daySchedule.date}
-            date={daySchedule.date}
-            dayName={daySchedule.dayLabel}
-            isSelected={index === selectedDayIndex}
-            collections={daySchedule.collections}
-            onPress={() => handleDayPress(index)}
-          />
-        ))}
-      </View>
-
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
-          />
-        }
-      >
-        {/* Selected Day's Collections */}
-        <View style={styles.selectedDayHeader}>
-          <CustomText style={styles.selectedDayText}>
-            {selectedDay.dayLabel}
-          </CustomText>
-          <CustomText style={styles.selectedDateText}>
-            {selectedDay.date}
-          </CustomText>
-        </View>
-
-        <View style={styles.collectionsContainer}>
-          {selectedDay.collections.length > 0 ? (
-            selectedDay.collections.map((collection, index) => (
-              <CollectionCard
-                key={`${collection.wasteType}_${index}`}
-                collection={collection}
-                style={{ marginBottom: 12 }}
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={setNotificationsEnabled}
+                trackColor={{ false: COLORS.secondary, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+                style={{ marginLeft: 8 }}
               />
-            ))
-          ) : (
-            <View style={styles.noCollectionContainer}>
-              <Icon name="event-busy" size={32} color={COLORS.textGray} />
-              <CustomText style={styles.noCollectionText}>
-                No collections scheduled
-              </CustomText>
-              <CustomText style={styles.noCollectionSubText}>
-                There are no waste collections scheduled for this day
-              </CustomText>
             </View>
           )}
         </View>
+        <CustomText style={styles.subtitle}>
+          View your waste collection schedule
+        </CustomText>
+      </View>
 
-        {/* Upcoming Collections Section */}
-        {upcomingCollections.length > 0 && (
-          <View style={styles.upcomingSection}>
-            <View style={styles.upcomingHeader}>
-              <Icon name="event-note" size={24} color={COLORS.primary} />
-              <CustomText style={styles.upcomingSectionTitle}>
-                Upcoming
+      {locationMissing ? (
+        <View style={styles.content}>{renderLocationMissingMessage()}</View>
+      ) : (
+        <>
+          <View style={styles.calendarStrip}>
+            {schedules.map((daySchedule, index) => (
+              <CalendarDay
+                key={daySchedule.date}
+                date={daySchedule.date}
+                dayName={daySchedule.dayLabel}
+                isSelected={index === selectedDayIndex}
+                collections={daySchedule.collections}
+                onPress={() => handleDayPress(index)}
+              />
+            ))}
+          </View>
+
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[COLORS.primary]}
+                tintColor={COLORS.primary}
+              />
+            }
+          >
+            {/* Selected Day's Collections */}
+            <View style={styles.selectedDayHeader}>
+              <CustomText style={styles.selectedDayText}>
+                {selectedDay.dayLabel}
+              </CustomText>
+              <CustomText style={styles.selectedDateText}>
+                {selectedDay.date}
               </CustomText>
             </View>
 
-            <View style={styles.upcomingList}>
-              {upcomingCollections.map((collection, index) => (
-                <UpcomingCollectionCard
-                  key={`upcoming_${collection.wasteType}_${index}`}
-                  collection={collection}
-                  date={collection.date}
-                  dayName={collection.dayName}
-                />
-              ))}
+            <View style={styles.collectionsContainer}>
+              {selectedDay.collections.length > 0 ? (
+                selectedDay.collections.map((collection, index) => (
+                  <CollectionCard
+                    key={`${collection.wasteType}_${index}`}
+                    collection={collection}
+                    style={{ marginBottom: 12 }}
+                  />
+                ))
+              ) : (
+                <View style={styles.noCollectionContainer}>
+                  <Icon name="event-busy" size={32} color={COLORS.textGray} />
+                  <CustomText style={styles.noCollectionText}>
+                    No collections scheduled
+                  </CustomText>
+                  <CustomText style={styles.noCollectionSubText}>
+                    There are no waste collections scheduled for this day
+                  </CustomText>
+                </View>
+              )}
             </View>
-          </View>
-        )}
-      </ScrollView>
+
+            {/* Upcoming Collections Section */}
+            {upcomingCollections.length > 0 && (
+              <View style={styles.upcomingSection}>
+                <View style={styles.upcomingHeader}>
+                  <Icon name="event-note" size={24} color={COLORS.primary} />
+                  <CustomText style={styles.upcomingSectionTitle}>
+                    Upcoming
+                  </CustomText>
+                </View>
+
+                <View style={styles.upcomingList}>
+                  {upcomingCollections.map((collection, index) => (
+                    <UpcomingCollectionCard
+                      key={`upcoming_${collection.wasteType}_${index}`}
+                      collection={collection}
+                      date={collection.date}
+                      dayName={collection.dayName}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+            <View style={styles.bottomSpace} />
+          </ScrollView>
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -505,20 +545,41 @@ const styles = StyleSheet.create({
     color: COLORS.errorbanner,
     textAlign: "center",
   },
+  loadingText: {
+    marginTop: 10,
+    color: COLORS.textGray,
+    fontSize: 16,
+  },
   header: {
     padding: 20,
     paddingBottom: 10,
     backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderGray,
     elevation: 2,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   heading: {
     fontSize: 28,
     fontWeight: "600",
     color: COLORS.primary,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: COLORS.textGray,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
   },
   calendarStrip: {
     height: CALENDAR_STRIP_HEIGHT,
@@ -657,11 +718,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     opacity: 0.8,
   },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
   notificationToggle: {
     flexDirection: "row",
     alignItems: "center",
@@ -750,4 +806,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textGray,
   },
+  locationMissingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  locationMissingTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: COLORS.errorbanner,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  locationMissingText: {
+    fontSize: 16,
+    color: COLORS.textGray,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  setLocationButton: {
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 15,
+    borderRadius: 12,
+    width: "80%",
+    marginTop: 10,
+  },
+  setLocationButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  bottomSpace: {
+    height: 20,
+  },
 });
+
+export default ScheduleScreen;

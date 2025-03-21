@@ -25,7 +25,6 @@ import {
   updateUserLocation,
   updateUserProfile,
 } from "../services/firebaseFirestore";
-import { clearNotificationPreferencesOnLocationChange } from "../services/NotificationService";
 
 export default function ProfileScreen({ navigation }) {
   const [userMunicipalCouncil, setUserMunicipalCouncil] = useState("");
@@ -246,9 +245,6 @@ export default function ProfileScreen({ navigation }) {
         setSelectedDistrictName(selectedDistrictData.name);
         setSelectedWardName(selectedWardData.name);
         setLocationLocked(true);
-
-        await clearNotificationPreferencesOnLocationChange();
-
         showNotification("Location updated successfully!", "success");
       }
     } catch (error) {

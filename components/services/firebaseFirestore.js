@@ -242,6 +242,12 @@ export const createTicket = async (userId, ticketData) => {
       throw new Error("Location not set");
     }
 
+    if (!userProfile.phoneNumber) {
+      throw new Error(
+        "Please add your phone number in profile before submitting a ticket"
+      );
+    }
+
     const ticketsRef = collection(
       firestore,
       `municipalCouncils/${userProfile.municipalCouncil}/Districts/${userProfile.district}/Wards/${userProfile.ward}/tickets`
@@ -249,9 +255,9 @@ export const createTicket = async (userId, ticketData) => {
 
     const newTicket = {
       userId,
-      userName: userProfile.name,
-      userEmail: userProfile.email,
-      phoneNumber: userProfile.phoneNumber || "",
+      userName: userProfile.name || "Anonymous User",
+      userEmail: userProfile.email || "",
+      phoneNumber: userProfile.phoneNumber,
       homeLocation: userProfile.homeLocation,
       status: "pending",
       createdAt: serverTimestamp(),

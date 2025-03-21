@@ -8,6 +8,9 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
+  orderBy,
+  addDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import { firestore } from "../utils/firebaseConfig";
 
@@ -224,4 +227,159 @@ export const calculateDistance = (location1, location2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return Math.round(R * c);
+};
+
+// Create a new ticket
+export const createTicket = async (userId, ticketData) => {
+  try {
+    const userProfile = await fetchUserProfile(userId);
+
+    if (
+      !userProfile.municipalCouncil ||
+      !userProfile.district ||
+      !userProfile.ward
+    ) {
+      throw new Error("Location not set");
+    }
+
+    const ticketsRef = collection(
+      firestore,
+      `municipalCouncils/${userProfile.municipalCouncil}/Districts/${userProfile.district}/Wards/${userProfile.ward}/tickets`
+    );
+
+    const newTicket = {
+      userId,
+      userName: userProfile.name,
+      userEmail: userProfile.email,
+      phoneNumber: userProfile.phoneNumber || "",
+      homeLocation: userProfile.homeLocation,
+      status: "pending",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      ...ticketData,
+    };
+
+    const docRef = await addDoc(ticketsRef, newTicket);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error creating ticket:", error);
+    throw error;
+  }
+};
+
+// Fetch user's tickets
+export const fetchUserTickets = async (userId) => {
+  try {
+    const userProfile = await fetchUserProfile(userId);
+
+    if (
+      !userProfile.municipalCouncil ||
+      !userProfile.district ||
+      !userProfile.ward
+    ) {
+      throw new Error("Location not set");
+    }
+
+    const ticketsRef = collection(
+      firestore,
+      `municipalCouncils/${userProfile.municipalCouncil}/Districts/${userProfile.district}/Wards/${userProfile.ward}/tickets`
+    );
+
+    const q = query(
+      ticketsRef,
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc")
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate(),
+      updatedAt: doc.data().updatedAt?.toDate(),
+      resolvedAt: doc.data().resolvedAt?.toDate(),
+    }));
+  } catch (error) {
+    console.error("Error fetching user tickets:", error);
+    throw error;
+  }
+};
+
+// Get real-time updates for user's tickets
+export const subscribeToUserTickets = (userId, callback) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const userProfile = await fetchUserProfile(userId);
+
+      if (
+        !userProfile.municipalCouncil ||
+        !userProfile.district ||
+        !userProfile.ward
+      ) {
+        throw new Error("Location not set");
+      }
+
+      const ticketsRef = collection(
+        firestore,
+        `municipalCouncils/${userProfile.municipalCouncil}/Districts/${userProfile.district}/Wards/${userProfile.ward}/tickets`
+      );
+
+      const q = query(
+        ticketsRef,
+        where("userId", "==", userId),
+        orderBy("createdAt", "desc")
+      );
+
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const tickets = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate(),
+            updatedAt: doc.data().updatedAt?.toDate(),
+            resolvedAt: doc.data().resolvedAt?.toDate(),
+          }));
+          callback(tickets);
+        },
+        (error) => {
+          console.error("Error in tickets subscription:", error);
+          reject(error);
+        }
+      );
+
+      resolve(unsubscribe);
+    } catch (error) {
+      console.error("Error setting up tickets subscription:", error);
+      reject(error);
+    }
+  });
+};
+
+// Get today's scheduled waste types for the user
+export const getTodayScheduledWasteTypes = async (userId) => {
+  try {
+    const schedules = await fetchUserSchedules(userId);
+    const today = new Date();
+    const days = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
+    const todayName = days[today.getDay()];
+
+    const todaySchedules = schedules.filter(
+      (schedule) => schedule.day === todayName || schedule.day === "All"
+    );
+
+    return todaySchedules.map((schedule) => schedule.wasteType);
+  } catch (error) {
+    console.error("Error fetching today's scheduled waste types:", error);
+    throw error;
+  }
 };

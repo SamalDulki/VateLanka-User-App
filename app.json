@@ -16,6 +16,9 @@
       "supportsTablet": true,
       "config": {
         "googleMapsApiKey": "AIzaSyCAlQrLUYEmcVRj8nd1W6HZKOpMfHsweDw"
+      },
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "remote-notification"]
       }
     },
     "android": {
@@ -28,12 +31,27 @@
         "googleMaps": {
           "apiKey": "AIzaSyCAlQrLUYEmcVRj8nd1W6HZKOpMfHsweDw"
         }
-      }
+      },
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM",
+        "ACCESS_NOTIFICATION_POLICY"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-font"],
+    "plugins": [
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification_icon.png",
+          "color": "#34A853"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "8da7a432-6d74-4fb3-ac24-b8338840033b"

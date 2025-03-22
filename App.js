@@ -45,6 +45,15 @@ function HomeTabs() {
         },
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.iconinactive,
+        tabBarItemStyle: {
+          paddingVertical: 8,
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
+        },
+        tabBarLabelStyle: {
+          marginTop: 0,
+        }
       }}
     >
       <Tab.Screen
@@ -52,7 +61,7 @@ function HomeTabs() {
         component={HomeScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <Icon name="home" size={24} color={color} />
+            <Icon name="home" size={27} color={color} />
           ),
         }}
       />
@@ -61,7 +70,7 @@ function HomeTabs() {
         component={ScheduleScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <Icon name="calendar" size={24} color={color} />
+            <Icon name="calendar" size={27} color={color} />
           ),
         }}
       />
@@ -70,7 +79,7 @@ function HomeTabs() {
         component={ReportScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <Icon name="navigation" size={24} color={color} />
+            <Icon name="navigation" size={27} color={color} />
           ),
         }}
       />
@@ -79,7 +88,7 @@ function HomeTabs() {
         component={TrackScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <Icon name="map-pin" size={24} color={color} />
+            <Icon name="map-pin" size={27} color={color} />
           ),
         }}
       />
@@ -88,7 +97,7 @@ function HomeTabs() {
         component={RecycleScreen}
         options={{
           tabBarIcon: ({ color }) => (
-            <Icon name="refresh-cw" size={24} color={color} />
+            <Icon name="refresh-cw" size={27} color={color} />
           ),
         }}
       />

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   SafeAreaView,
@@ -21,6 +21,12 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialIcons } from "@expo/vector-icons";
 import NotificationBanner from "../utils/NotificationBanner";
+import {
+  isNotificationsEnabled,
+  setNotificationsEnabled,
+  initializeNotifications,
+  scheduleMorningReminders,
+} from "../services/notificationService";
 
 const CALENDAR_STRIP_HEIGHT = 90;
 
@@ -212,7 +218,7 @@ export function ScheduleScreen({ navigation }) {
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationsEnabled, setNotificationsToggle] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [locationMissing, setLocationMissing] = useState(false);
   const [notification, setNotification] = useState({
@@ -230,15 +236,55 @@ export function ScheduleScreen({ navigation }) {
     });
   };
 
+  const handleNotificationToggle = async (value) => {
+    try {
+      if (value) {
+        const permissionGranted = await initializeNotifications();
+        if (!permissionGranted) {
+          showNotification("Please enable notifications in settings", "error");
+          return;
+        }
+      }
+
+      await setNotificationsEnabled(value);
+      setNotificationsToggle(value);
+
+      if (value) {
+        showNotification("Collection notifications enabled", "success");
+
+        const user = auth.currentUser;
+        if (user) {
+          await scheduleMorningReminders(user.uid);
+        }
+      } else {
+        showNotification("Collection notifications disabled", "success");
+      }
+    } catch (error) {
+      console.error("Error toggling notifications:", error);
+      showNotification("Failed to update notification settings", "error");
+    }
+  };
+
+  const loadNotificationSettings = async () => {
+    try {
+      const enabled = await isNotificationsEnabled();
+      setNotificationsToggle(enabled);
+    } catch (error) {
+      console.error("Error loading notification settings:", error);
+    }
+  };
+
   useFocusEffect(
     React.useCallback(() => {
       loadSchedules();
+      loadNotificationSettings();
     }, [])
   );
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     await loadSchedules();
+    await loadNotificationSettings();
     setRefreshing(false);
   }, []);
 
@@ -423,7 +469,7 @@ export function ScheduleScreen({ navigation }) {
               />
               <Switch
                 value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
+                onValueChange={handleNotificationToggle}
                 trackColor={{ false: COLORS.secondary, true: COLORS.primary }}
                 thumbColor={COLORS.white}
                 style={{ marginLeft: 8 }}
@@ -475,7 +521,6 @@ export function ScheduleScreen({ navigation }) {
                 {selectedDay.date}
               </CustomText>
             </View>
-
             <View style={styles.collectionsContainer}>
               {selectedDay.collections.length > 0 ? (
                 selectedDay.collections.map((collection, index) => (

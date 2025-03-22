@@ -23,6 +23,11 @@ import {
   clearUserSession,
   getUserSession,
 } from "./components/utils/authStorage";
+import {
+  initializeNotifications,
+  registerBackgroundTasks,
+  isNotificationsEnabled,
+} from "./components/services/notificationService";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -96,12 +101,26 @@ export default function App() {
   const [user, setUser] = React.useState(null);
 
   React.useEffect(() => {
+    const setupNotifications = async () => {
+      try {
+        const notificationsEnabled = await isNotificationsEnabled();
+        if (notificationsEnabled) {
+          await initializeNotifications();
+          await registerBackgroundTasks();
+        }
+      } catch (error) {
+        console.error("Notification initialization error:", error);
+      }
+    };
+
     const initializeAuth = async () => {
       try {
         const userSession = await getUserSession();
         if (userSession && userSession.emailVerified) {
           console.log("Found existing session");
         }
+
+        await setupNotifications();
       } catch (error) {
         console.error("Authentication initialization error:", error);
       }

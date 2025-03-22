@@ -21,6 +21,7 @@ import NotificationBanner from "../utils/NotificationBanner";
 import { fetchUserProfile } from "../services/firebaseFirestore";
 import { firestore } from "../utils/firebaseConfig";
 import { collection, onSnapshot, getDocs } from "firebase/firestore";
+import { sendTruckProximityNotification } from "../services/notificationService";
 
 const { width, height } = Dimensions.get("window");
 
@@ -110,6 +111,8 @@ export function TrackScreen({ navigation }) {
   });
   const mapRef = useRef(null);
 
+  const [notifiedTrucks, setNotifiedTrucks] = useState(new Set());
+
   const showNotification = (message, type = "error") => {
     setNotification({
       visible: true,
@@ -119,6 +122,26 @@ export function TrackScreen({ navigation }) {
   };
 
   const [refreshing, setRefreshing] = useState(false);
+
+  const checkAndNotifyNearbyTrucks = async (trucksData) => {
+    if (!userProfile?.homeLocation) return;
+
+    const nearbyTrucks = trucksData.filter(
+      (truck) =>
+        truck.distance !== null &&
+        truck.distance <= 1000 &&
+        truck.routeStatus === "active"
+    );
+
+    for (const truck of nearbyTrucks) {
+      if (!notifiedTrucks.has(truck.id)) {
+        const sent = await sendTruckProximityNotification(truck);
+        if (sent) {
+          setNotifiedTrucks((prev) => new Set([...prev, truck.id]));
+        }
+      }
+    }
+  };
 
   const loadTruckData = async () => {
     try {
@@ -159,7 +182,6 @@ export function TrackScreen({ navigation }) {
             }
             return truck;
           })
-          // Filter to only show trucks within 1km radius
           .filter((truck) => truck.distance !== null && truck.distance <= 1000);
 
         trucksWithDistance.sort(
@@ -167,6 +189,9 @@ export function TrackScreen({ navigation }) {
         );
 
         setTrucks(trucksWithDistance);
+
+        checkAndNotifyNearbyTrucks(trucksWithDistance);
+
         setLoading(false);
         setRefreshing(false);
       });
@@ -181,10 +206,10 @@ export function TrackScreen({ navigation }) {
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     await loadTruckData();
-  };
+  }, []);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -202,6 +227,12 @@ export function TrackScreen({ navigation }) {
       if (typeof unsubscribe === "function") {
         unsubscribe();
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      setNotifiedTrucks(new Set());
     };
   }, []);
 

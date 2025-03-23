@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   SafeAreaView,
   TextInput,
+  BackHandler,
 } from "react-native";
 import { auth } from "../utils/firebaseConfig";
 import CustomText from "../utils/CustomText";
@@ -25,6 +26,7 @@ import {
   updateUserLocation,
   updateUserProfile,
 } from "../services/firebaseFirestore";
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen({ navigation }) {
   const [userMunicipalCouncil, setUserMunicipalCouncil] = useState("");
@@ -51,6 +53,25 @@ export default function ProfileScreen({ navigation }) {
     message: "",
     type: "success",
   });
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        handleGoBack();
+        return true;
+      };
+
+      BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+      };
+    }, [])
+  );
+
+  const handleGoBack = () => {
+    navigation.goBack();
+  };
 
   useEffect(() => {
     fetchUserData();
@@ -366,6 +387,15 @@ export default function ProfileScreen({ navigation }) {
         {...notification}
         onHide={() => setNotification((prev) => ({ ...prev, visible: false }))}
       />
+      
+      <View style={styles.headerContainer}>
+        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
+          <Icon name="arrow-back" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+        <CustomText style={styles.headerTitle}>Profile</CustomText>
+        <View style={styles.headerRight} />
+      </View>
+        
       <View style={styles.container}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -637,6 +667,30 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    height: 85,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.borderGray,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.black,
+  },
+  headerRight: {
+    width: 32,
   },
   container: {
     flex: 1,

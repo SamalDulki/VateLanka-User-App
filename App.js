@@ -15,6 +15,7 @@ import { ScheduleScreen } from "./components/Screens/ScheduleScreen";
 import { ReportScreen } from "./components/Screens/ReportScreen";
 import { TrackScreen } from "./components/Screens/TrackScreen";
 import { RecycleScreen } from "./components/Screens/RecycleScreen";
+import DonationScreen from "./components/Screens/DonationScreen";
 import { auth } from "./components/utils/firebaseConfig";
 import Icon from "react-native-vector-icons/Feather";
 import { COLORS } from "./components/utils/Constants";
@@ -98,6 +99,15 @@ function HomeTabs() {
         options={{
           tabBarIcon: ({ color }) => (
             <Icon name="refresh-cw" size={27} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Donation"
+        component={DonationScreen}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <Icon name="dollar-sign" size={27} color={color} />
           ),
         }}
       />

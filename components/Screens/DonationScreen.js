@@ -1,11 +1,34 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { View, SafeAreaView, StyleSheet } from "react-native";
+import { COLORS } from "../utils/Constants"; 
+import CustomText from "../utils/CustomText"; 
 
-const DonationScreen = () => {
+const Donation = () => {
   return (
-    <View>
-      <Text>Donation Screen</Text>
-    </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <CustomText style={styles.heading}>Donation Page</CustomText>
+      </View>
+    </SafeAreaView>
   );
 };
-export default DonationScreen;
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  heading: {
+    fontSize: 28,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+});
+
+export default Donation;

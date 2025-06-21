@@ -66,6 +66,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textGray,
   },
+  webViewContainer: {
+    flex: 1,
+    padding: 10,
+  },
+  tile: {
+    backgroundColor: COLORS.white,
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 8,
+    elevation: 2,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  tileTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.primary,
+    marginBottom: 6,
+  },
+  tileText: {
+    fontSize: 14,
+    color: COLORS.textGray,
+  },
+  donateButton: {
+    marginTop: "auto",
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  donateButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });
 
 export default DonationScreen;

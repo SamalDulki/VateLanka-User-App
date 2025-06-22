@@ -16,6 +16,7 @@ import { ReportScreen } from "./components/Screens/ReportScreen";
 import { TrackScreen } from "./components/Screens/TrackScreen";
 import { RecycleScreen } from "./components/Screens/RecycleScreen";
 import DonationScreen from "./components/Screens/DonationScreen";
+import Donations from "./components/Screens/Donations";
 import { auth } from "./components/utils/firebaseConfig";
 import Icon from "react-native-vector-icons/Feather";
 import { COLORS } from "./components/utils/Constants";
@@ -180,6 +181,7 @@ export default function App() {
           <>
             <Stack.Screen name="MainApp" component={HomeTabs} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="Donations" component={Donations} />
           </>
         ) : (
           <>

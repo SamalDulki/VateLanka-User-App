@@ -1,9 +1,15 @@
 import React from "react";
-import { View, SafeAreaView, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import {
+  View,
+  SafeAreaView,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { WebView } from "react-native-webview";
-import { COLORS } from "../utils/Constants"; 
-import CustomText from "../utils/CustomText"; 
+import { COLORS } from "../utils/Constants";
+import CustomText from "../utils/CustomText";
 
 const DonationScreen = () => {
   const navigation = useNavigation();
@@ -13,28 +19,64 @@ const DonationScreen = () => {
       <View style={styles.header}>
         <CustomText style={styles.heading}>Donations</CustomText>
         <CustomText style={styles.subtitle}>
-          Donate to support our cause
+          Help save young hearts and brave lives
         </CustomText>
       </View>
-      <View style={styles.webViewContainer}>
-        <View style={styles.tile}>
-          <CustomText style={styles.tileTitle}>Why Donate?</CustomText>
-          <CustomText style={styles.tileText}>
-            Your donation helps us continue our mission, expand our outreach, and support communities in need.
-          </CustomText>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.card}>
+          <Image
+            source={require("../../assets/donation.jpg")}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+          <View style={styles.cardBody}>
+            <CustomText style={styles.tileTitle}>Why Donate?</CustomText>
+            <CustomText style={styles.tileText}>
+              Your support helps fund life-saving treatments and essential
+              medical care for those in need, including children born with heart
+              conditions and cancer patients relying on free public healthcare.
+              Every donation brings hope, healing, and a second chance at life.
+            </CustomText>
+          </View>
+        </View>
+        <View style={styles.card}>
+          <Image
+            source={require("../../assets/donation2.jpg")}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+          <View style={styles.cardBody}>
+            <CustomText style={styles.tileTitle}>
+              Where Your Donation Goes
+            </CustomText>
+            <CustomText style={styles.tileText}>
+              Your donation directly supports two of Sri Lanka’s most vital
+              healthcare causes — the{" "}
+              <CustomText style={{ fontWeight: "bold" }}>
+                {" "}
+                Little Hearts Fund{" "}
+              </CustomText>
+              , which is building a cardiac and critical care unit for children
+              in need of life-saving heart treatment, and the{" "}
+              <CustomText style={{ fontWeight: "bold" }}>
+                {" "}
+                National Cancer Hospital{" "}
+              </CustomText>
+              , which provides free cancer care to thousands of patients.
+              {"\n\n"} Every contribution helps purchase essential medical
+              equipment, improve hospital infrastructure, and ensure that
+              children and cancer patients receive the urgent care they deserve.
+            </CustomText>
+          </View>
         </View>
 
-        <View style={styles.tile}>
-          <CustomText style={styles.tileTitle}>Where Your Donation Goes</CustomText>
-          <CustomText style={styles.tileText}>
-            Donations fund educational programs, health initiatives, and disaster relief efforts to make a real impact.
-          </CustomText>
-        </View>
-
-        <TouchableOpacity style={styles.donateButton} onPress={() => navigation.navigate("Donations")}>
+        <TouchableOpacity
+          style={styles.donateButton}
+          onPress={() => navigation.navigate("Donations")}
+        >
           <CustomText style={styles.donateButtonText}>Donate Now</CustomText>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -66,9 +108,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textGray,
   },
-  webViewContainer: {
-    flex: 1,
+  content: {
     padding: 10,
+  },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: COLORS.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    marginBottom: 50,
+    overflow: "hidden",
+  },
+  cardImage: {
+    width: "100%",
+    height: 250,
+  },
+  cardBody: {
+    padding: 15,
   },
   tile: {
     backgroundColor: COLORS.white,
@@ -82,23 +141,22 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   tileTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "800",
     color: COLORS.primary,
     marginBottom: 6,
   },
   tileText: {
-    fontSize: 14,
+    fontSize: 16,
     color: COLORS.textGray,
   },
   donateButton: {
     marginTop: "auto",
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: 8,
+    paddingVertical: 15,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
   },
   donateButtonText: {
     color: COLORS.white,

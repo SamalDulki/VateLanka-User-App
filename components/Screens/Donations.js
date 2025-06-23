@@ -9,8 +9,12 @@ import {
 import { WebView } from "react-native-webview";
 import { COLORS } from "../utils/Constants";
 import CustomText from "../utils/CustomText";
+import { useNavigation } from "@react-navigation/native";
+import Icon from "react-native-vector-icons/MaterialIcons";
+import { TouchableOpacity } from "react-native";
 
 const Donation = () => {
+  const navigation = useNavigation();
   const payHereForm = `
     <html>
       <body onload="document.forms[0].submit()" style="background-color:white;">
@@ -38,9 +42,15 @@ const Donation = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
         <CustomText style={styles.heading}>Payment</CustomText>
+        <View style={{ width: 30 }} />
       </View>
-
       <ScrollView>
         <View style={styles.section}>
           <CustomText style={styles.optionTitle}>Online Payment</CustomText>
@@ -88,7 +98,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
   },
   header: {
-    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 20,
     backgroundColor: COLORS.white,
     elevation: 2,
     shadowColor: COLORS.black,
@@ -103,7 +117,10 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginBottom: 6,
     textAlign: "center",
-    marginTop: 15,
+    marginTop: 10,
+  },
+  backButton: {
+    padding: 4,
   },
   subtitle: {
     fontSize: 16,

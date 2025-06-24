@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     color: COLORS.textGray,
   },
   donateButton: {
-    marginTop: "auto",
+    marginTop: -25,
     backgroundColor: COLORS.primary,
     paddingVertical: 15,
     borderRadius: 10,

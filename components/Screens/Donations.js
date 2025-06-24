@@ -12,6 +12,7 @@ import CustomText from "../utils/CustomText";
 import { useNavigation } from "@react-navigation/native";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { TouchableOpacity } from "react-native";
+import { Image } from "react-native";
 
 const Donation = () => {
   const navigation = useNavigation();
@@ -85,6 +86,20 @@ const Donation = () => {
             <CustomText style={styles.bankLine}>
               <CustomText style={styles.label}>SWIFT Code:</CustomText> BCEYLKLX
             </CustomText>
+          </View>
+        </View>
+        <View style={styles.section}>
+          <CustomText style={styles.optionTitle}>Pay via Lanka QR Code</CustomText>
+          <View style={styles.qrBox}>
+            <CustomText style={styles.qrNote}>
+              Scan the QR code below using your preferred banking app to
+              complete the donation.
+            </CustomText>
+            <Image
+              source={require("../../assets/lankaqr.jpeg")}
+              style={styles.qrImage}
+              resizeMode="contain"
+            />
           </View>
         </View>
       </ScrollView>
@@ -173,6 +188,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.primary,
   },
+  qrBox: {
+  backgroundColor: COLORS.white,
+  marginHorizontal: 16,
+  borderRadius: 12,
+  padding: 20,
+  alignItems: "center",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 4,
+},
+qrNote: {
+  fontSize: 14,
+  color: COLORS.textGray,
+  marginBottom: 16,
+  textAlign: "center",
+},
+qrImage: {
+  width: 350,
+  height: 350,
+},
 });
 
 export default Donation;

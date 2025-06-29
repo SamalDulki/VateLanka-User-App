@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   SafeAreaView,
@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { COLORS } from "../utils/Constants";
@@ -13,6 +14,21 @@ import CustomText from "../utils/CustomText";
 
 const DonationScreen = () => {
   const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      console.log("Donation screen refreshed");
+    } catch (error) {
+      console.error("Error refreshing donation screen:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -22,7 +38,19 @@ const DonationScreen = () => {
           Help save young hearts and brave lives
         </CustomText>
       </View>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.primary]} // Android
+            tintColor={COLORS.primary} // iOS
+            title="Pull to refresh"
+            titleColor={COLORS.primary}
+          />
+        }
+      >
         <View style={styles.card}>
           <Image
             source={require("../../assets/donation.jpg")}
@@ -50,7 +78,7 @@ const DonationScreen = () => {
               Where Your Donation Goes
             </CustomText>
             <CustomText style={styles.tileText}>
-              Your donation directly supports two of Sri Lanka’s most vital
+              Your donation directly supports two of Sri Lanka's most vital
               healthcare causes — the{" "}
               <CustomText style={{ fontWeight: "bold" }}>
                 {" "}
